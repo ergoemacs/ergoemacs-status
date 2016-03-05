@@ -7,6 +7,8 @@
 ;; Created: Fri Mar  4 14:13:50 2016 (-0600)
 ;; Version: 0.1
 ;; Package-Requires: ((powerline "2.3") (mode-icons "0.1.0"))
+;;
+;;; Commentary:
 ;; 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; 
@@ -29,8 +31,21 @@
 (require 'powerline nil t)
 (require 'mode-icons nil t)
 
+(declare-function ergoemacs-next-emacs-buffer "ergoemacs-lib")
+(declare-function ergoemacs-next-user-buffer "ergoemacs-lib")
+(declare-function ergoemacs-previous-emacs-buffer "ergoemacs-lib")
+(declare-function ergoemacs-previous-user-buffer "ergoemacs-lib")
+(defvar ergoemacs-menu--get-major-modes)
+
+(declare-function mode-icons-get-mode-icon "mode-icons")
+(declare-function mode-icons-mode "mode-icons")
+(declare-function mode-icons-propertize-mode "mode-icons")
+
+(declare-function powerline-current-separator "powerline")
+(declare-function powerline-selected-window-active "powerline")
+
 (defcustom ergoemacs-status-popup-languages t
-  "Allow Swapping of major-modes when clicking the mode-name."
+  "Allow Swapping of `major-modes' when clicking the mode-name."
   :type 'boolean
   :group 'ergoemacs-status)
 
@@ -74,12 +89,13 @@
                 (buffer-list))))
 
 (defun ergoemacs-status-group-function (&optional buffer)
-  "What group does the current buffer belong to?"
+  "What group does the current BUFFER belong to?"
   (if (char-equal ?\* (aref (buffer-name buffer) 0))
       "Emacs Buffer"
     "User Buffer"))
 
 (defun ergoemacs-status-menu (&optional buffer)
+  "Create the BUFFER name menu."
   (let* ((cb (or buffer (current-buffer)))
 	 (group (with-current-buffer cb
 		  (if (functionp ergoemacs-status-change-buffer)
@@ -253,15 +269,15 @@
 
 (defun ergoemacs-status--encoding ()
   "Encoding mode-line."
-  (ergoemacs-save-buffer-state
-   (propertize (format "%s" (coding-system-type buffer-file-coding-system))
+  (propertize (format "%s" (coding-system-type buffer-file-coding-system))
 	      'mouse-face 'mode-line-highlight
 	      'help-echo (format "mouse-1: Change buffer coding system\n%s"
 				 (coding-system-doc-string buffer-file-coding-system))
 	      'local-map '(keymap
 			   (mode-line keymap
-				      (mouse-1 . ergoemacs-status--set-buffer-file-coding-system))))))
+				      (mouse-1 . ergoemacs-status--set-buffer-file-coding-system)))))
 
+(defvar powerline-default-separator-dir)
 (defun ergoemacs-status--sep (dir &rest args)
   "Separator"
   (let ((separator (and (fboundp #'powerline-current-separator)
@@ -288,13 +304,20 @@
     (when (fboundp separator)
       (let ((img (apply separator args)))
 	(when (and (listp img) (eq 'image (car img)))
-	  (ergoemacs-save-buffer-state
-	   (propertize " " 'display img
-		       'face (plist-get (cdr img) :face))))))))
+	  (propertize " " 'display img
+		       'face (plist-get (cdr img) :face)))))))
 
 (defvar ergoemacs-status--lhs nil)
 (defvar ergoemacs-status--center nil)
 (defvar ergoemacs-status--rhs nil)
+
+(defvar ergoemacs-status--space-hidden-minor-modes nil
+  "List of minor modes hidden due to space limitations.")
+
+;; Adapted from powerline.
+(defvar ergoemacs-status--suppressed-minor-modes '(isearch-mode)
+  "List of suppressed minor modes.")
+
 
 (defun ergoemacs-minor-mode-menu-from-indicator (indicator &optional dont-popup)
   "Show menu for minor mode specified by INDICATOR.
@@ -359,12 +382,6 @@ items `Turn Off', `Hide' and `Help'."
             (interactive "@e")
             nil))))
 
-(defvar ergoemacs-status--space-hidden-minor-modes nil
-  "List of minor modes hidden due to space limitations.")
-
-;; Adapted from powerline.
-(defvar ergoemacs-status--suppressed-minor-modes '(isearch-mode)
-  "List of suppressed minor modes.")
 
 (defvar ergoemacs-status--hidden-minor-modes '()
   "List of tempoarily hidden modes")
@@ -569,9 +586,10 @@ items `Turn Off', `Hide' and `Help'."
 	      'local-map ergoemacs-status-major-mode-map
 	      'help-echo "Major mode\nmouse-1: Display major mode menu\nmouse-2: Show help for major mode\nmouse-3: Toggle minor modes"))
 
+(defvar which-func-format)
 (defun ergoemacs-status-which-function-mode ()
   "Display `which-function-mode' without brackets."
-  (when which-function-mode
+  (when (and (boundp 'which-function-mode) which-function-mode)
     (substring (format-mode-line which-func-format) 1 -1)))
 
 (defun ergoemacs-status--center ()
@@ -739,6 +757,9 @@ items `Turn Off', `Hide' and `Help'."
 		   (string-width x)))))
 	   (ergoemacs-status--property-substrings str 'display))))
 
+(defvar ergoemacs-stats--ignore-eval-p nil
+  "Determine if the evaluate will complete.")
+
 (defun ergoemacs-status--eval-width-col (&optional what pixels-p)
   "Eval width of WHAT, which is formated with `format-mode-line'.
 When WHAT is nil, return the width of the window"
@@ -761,8 +782,14 @@ When WHAT is nil, return the width of the window"
 
 (defvar ergoemacs-status-max-reduction 4)
 
-(defvar ergoemacs-stats--ignore-eval-p nil
-  "Determine if the evaluate will complete.")
+(defvar mode-icons-read-only-space)
+
+(defvar mode-icons-show-mode-name)
+
+(defvar mode-icons-eol-text)
+
+(defvar mode-icons-cached-mode-name)
+
 (defun ergoemacs-status--eval ()
   (if ergoemacs-stats--ignore-eval-p ""
     ;; This will dynamically grow/fill areas
@@ -934,12 +961,13 @@ When WHAT is nil, return the width of the window"
     (force-mode-line-update)))
 
 (defvar ergoemacs-status-turn-off-mode-icons nil)
+(defvar mode-icons-mode)
 (define-minor-mode ergoemacs-status-mode
   "Ergoemacs status mode."
   :global t
   (if ergoemacs-status-mode
       (progn
-	(if mode-icons-mode
+	(if (and (boundp 'mode-icons-mode) mode-icons-mode)
 	    (setq ergoemacs-status-turn-off-mode-icons nil)
 	  (setq ergoemacs-status-turn-off-mode-icons t)
 	  (mode-icons-mode 1))
