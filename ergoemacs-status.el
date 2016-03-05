@@ -29,7 +29,7 @@
 (require 'powerline)
 (require 'mode-icons)
 
-(defcustom ergoemacs-status-popup-languages nil
+(defcustom ergoemacs-status-popup-languages t
   "Allow Swapping of major-modes when clicking the mode-name."
   :type 'boolean
   :group 'ergoemacs-status)
@@ -44,7 +44,7 @@
 
 (defvar ergoemacs-status--major-mode-menu-map nil)
 
-(defun ergoemacs-status--major-mode-menu-map ()
+(defun ergoemacs-status--major-mode-menu-map (&optional _ignore-real-binding)
   "Popup major modes and information about current mode."
   (interactive)
   (or ergoemacs-status--major-mode-menu-map
@@ -495,11 +495,12 @@ items `Turn Off', `Hide' and `Help'."
 	    col)))
 
 (defun ergoemacs-status-size-indication-mode ()
+  "Gives mode-line information when `size-indication-mode' is enabled."
   (when size-indication-mode
     (propertize
-	      "%I"
-	      'mouse-face 'mode-line-highlight
-	      'local-map ergoemacs-status-position-map)))
+     "%I"
+     'mouse-face 'mode-line-highlight
+     'local-map ergoemacs-status-position-map)))
 
 (defun ergoemacs-status--atom ()
   (setq ergoemacs-status--lhs
@@ -517,7 +518,7 @@ items `Turn Off', `Hide' and `Help'."
 	'((global-mode-string :pad r)
 	  ((ergoemacs-status-coding (lambda() (not (string= "undecided" (ergoemacs-status--encoding)))) ergoemacs-status--encoding) :pad b :reduce 2)
 	  ((ergoemacs-status-coding (lambda() (not (string= ":" (mode-line-eol-desc)))) mode-icons--mode-line-eol-desc mode-line-eol-desc) :pad l :reduce 2)
-	  ((mode-icons--generate-major-mode-item powerline-major-mode) :pad l)))
+	  ((ergoemacs-status-major-mode-item) :pad l)))
   (force-mode-line-update))
 
 (defvar ergoemacs-status-buffer-id-map
@@ -528,15 +529,32 @@ items `Turn Off', `Hide' and `Help'."
   "Keymap for clicking on the buffer status.")
 
 (defun ergoemacs-status-buffer-id ()
+  "Gives the Buffer identification string."
   (propertize "%12b"
 	      'mouse-face 'mode-line-highlight
 	      'face 'mode-line-buffer-id
 	      'local-map ergoemacs-status-buffer-id-map
 	      'help-echo "Buffer name\nBuffer menu"))
 
+(defvar ergoemacs-status-major-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mode-line down-mouse-3] (lookup-key mode-line-major-mode-keymap [mode-line down-mouse-3]))
+    (define-key map [mode-line mouse-2] #'describe-mode)
+    (define-key map [mode-line down-mouse-1]
+      `(menu-item "Menu Bar" ignore :filter ergoemacs-status--major-mode-menu-map))
+    map)
+  "Major mode keymap.")
+
+(defun ergoemacs-status-major-mode-item ()
+  "Gives major-mode item for mode-line."
+  (propertize mode-name
+	      'mouse-face 'mode-line-highlight
+	      'local-map ergoemacs-status-major-mode-map
+	      'help-echo "Major mode\nmouse-1: Display major mode menu\nmouse-2: Show help for major mode\nmouse-3: Toggle minor modes"))
+
 (defun ergoemacs-status--center ()
   (setq ergoemacs-status--lhs
-	'(((mode-icons--generate-major-mode-item powerline-major-mode) :pad b)
+	'(((ergoemacs-status-major-mode-item) :pad b)
 	  ((ergoemacs-status-use-vc powerline-vc) :reduce 1 :pad r)
 	  ((ergoemacs-status-size-indication-mode) :reduce 2 :pad b)
 	  ((ergoemacs-status-position) :reduce 2 :pad b))
@@ -562,7 +580,7 @@ items `Turn Off', `Hide' and `Help'."
 	  ((ergoemacs-status-size-indication-mode) :reduce 2 :pad b)
 	  ((ergoemacs-status-position) :reduce 2 :pad b)
 	  ;; ((ergoemacs-status-use-vc powerline-vc) :reduce 1 :pad r)
-	  ((mode-icons--generate-major-mode-item powerline-major-mode) :pad b))
+	  ((ergoemacs-status-major-mode-item) :pad b))
 	ergoemacs-status--center nil
 	ergoemacs-status--rhs nil)
   (force-mode-line-update))
