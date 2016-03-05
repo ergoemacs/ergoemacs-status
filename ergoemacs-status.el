@@ -512,7 +512,7 @@ items `Turn Off', `Hide' and `Help'."
     (call-interactively #'goto-line)))
 
 (defun ergoemacs-status-position ()
-  "ergoemacs-status mode line position."
+  "`ergoemacs-status-mode' line position."
   (let ((col (propertize
 	      (or (and line-number-mode "%3c") "")
 	      'mouse-face 'mode-line-highlight
@@ -536,23 +536,48 @@ items `Turn Off', `Hide' and `Help'."
      'mouse-face 'mode-line-highlight
      'local-map ergoemacs-status-position-map)))
 
+(defcustom ergoemacs-status-elements
+  '((:read-only (ergoemacs-status-read-only-status mode-icons--read-only-status) 3 nil)
+    (:buffer-id (ergoemacs-status-buffer-id) nil nil)
+    (:modified ((lambda() (and (buffer-file-name) t)) mode-icons--modified-status) nil nil)
+    (:size (ergoemacs-status-size-indication-mode) 2 nil)
+    (:position (ergoemacs-status-position) 2)
+    (:vc (ergoemacs-status-use-vc powerline-vc) 1 l)
+    (:minor (ergoemacs-status--minor-modes)  4 r)
+    (:narrow (mode-icons--generate-narrow) 4 r)
+    (:global (global-mode-string) nil nil)
+    (:coding (ergoemacs-status-coding (lambda() (not (string= "undecided" (ergoemacs-status--encoding)))) ergoemacs-status--encoding) 2 nil)
+    (:eol (ergoemacs-status-coding (lambda() (not (string= ":" (mode-line-eol-desc)))) mode-icons--mode-line-eol-desc mode-line-eol-desc) 2 nil)
+    (:major (ergoemacs-status-major-mode-item) nil nil)
+    (:which-func (ergoemacs-status-which-function-mode) nil nil)
+    (:process (mode-line-process) 1 nil))
+  "Elements of mode-line recognized by `ergoemacs-status-mode'.
+
+This is a list of element recognized by `ergoemacs-status-mode'."
+  :type '(repeat
+	  (list
+	   (symbol :tag "Element Name")
+	   (sexp :tag "Element Expression")
+	   (choice :tag "How this element is collapsed"
+	     (const :tag "Always keep this element" nil)
+	     (integer :tag "Reduction Level"))
+	   (choice :tag "Default padding of this element"
+		   (const :tag "Left Padding" l)
+		   (const :tag "Right Padding" r)
+		   (const :tag "Left and Right Padding" b)
+		   (const :tag "No Padding" nil))))
+  :group 'ergoemacs-status)
+
+(defvar ergoemacs-status-current nil
+  "Current layout of mode-line.")
+
 (defun ergoemacs-status--atom ()
-  (setq ergoemacs-status--lhs
-	'(((ergoemacs-status-read-only-status mode-icons--read-only-status "%*") :reduce 3 :pad l)
-	  ((ergoemacs-status-buffer-id) :last-p t :pad b)
-	  (((lambda() (and (buffer-file-name) t)) mode-icons--modified-status "%1") :last-p t)
-	  ((ergoemacs-status-size-indication-mode) :reduce 2 :pad b)
-	  ((ergoemacs-status-position) :reduce 2 :pad b)
-	  ((ergoemacs-status-use-vc powerline-vc) :reduce 1 :pad r))
-	ergoemacs-status--center
-	'(((ergoemacs-status--minor-modes)  :reduce 4)
-	  ((mode-icons--generate-narrow powerline-narrow "%n") :reduce 4 :last-p t)
-	  (" " :reduce 4))
-	ergoemacs-status--rhs
-	'((global-mode-string :pad r)
-	  ((ergoemacs-status-coding (lambda() (not (string= "undecided" (ergoemacs-status--encoding)))) ergoemacs-status--encoding) :pad b :reduce 2)
-	  ((ergoemacs-status-coding (lambda() (not (string= ":" (mode-line-eol-desc)))) mode-icons--mode-line-eol-desc mode-line-eol-desc) :pad l :reduce 2)
-	  ((ergoemacs-status-major-mode-item) :pad l)))
+  "Atom style layout."
+  (setq ergoemacs-status-current
+	'(:left ((:read-only :buffer-id :modified) :size :position :vc)
+		:center ((:minor :narrow))
+		:right (:global :coding :eol :major)))
+  (ergoemacs-status-current-update)
   (force-mode-line-update))
 
 (defvar ergoemacs-status-buffer-id-map
@@ -592,47 +617,125 @@ items `Turn Off', `Hide' and `Help'."
   (when (and (boundp 'which-function-mode) which-function-mode)
     (substring (format-mode-line which-func-format) 1 -1)))
 
+
+(defun ergoemacs-status-current-update (&optional theme-list direction)
+  "Update mode-line processing based on `ergoemacs-status-current'."
+  (if (not direction)
+      (setq ergoemacs-status--lhs (ergoemacs-status-current-update (plist-get ergoemacs-status-current :left) :left)
+	    ergoemacs-status--center (ergoemacs-status-current-update (plist-get ergoemacs-status-current :center) :center) 
+	    ergoemacs-status--rhs (ergoemacs-status-current-update (plist-get ergoemacs-status-current :right) :right))
+    (let (ret
+	  stat-elt
+	  pad
+	  reduce
+	  ifc
+	  lst tmp1 tmp2 tmp3
+	  first-p
+	  last-p)
+      (dolist (elt (reverse theme-list))
+	(setq first-p t)
+	(if (consp elt)
+	    (dolist (combine-elt (reverse elt))
+	      (when (setq stat-elt (assoc combine-elt ergoemacs-status-elements))
+		(setq ifc (nth 1 stat-elt)
+		  reduce (nth 2 stat-elt)
+		  pad (nth 3 stat-elt)
+		  last-p (eq (car theme-list) combine-elt) 
+		  pad (cond
+		       ((and (and (not first-p) (not last-p))
+			     (not pad)) 'r)
+		       ((and (and (not first-p) (not last-p))
+			     (eq pad 'r)) nil)
+		       ((and (and (not first-p) (not last-p))
+			     (eq pad 'l))
+			;; Modify last interaction, if possible
+			(setq tmp1 (pop ret)
+			      tmp2 (pop tmp1)
+			      tmp3 (plist-get tmp1 :pad))
+			(prog1 'r
+			  ;; drop right padding (if possible)
+			    (cond
+			     ((eq tmp3 'b)
+			      (setq tmp1 (plist-put tmp1 :pad 'l)))
+			     ((eq tmp3 'r)
+			      (setq tmp1 (plist-put tmp1 :pad nil)))))
+			(push tmp2 tmp1)
+			(push tmp1 ret))
+		       ;; Otherwise
+		       ((not pad) 'b)
+		       ((eq pad 'l) 'r)
+		       ((eq pad 'r) 'l)
+		       ((eq pad 'b)) nil)
+		  lst nil)
+		(when pad
+		  (push pad lst)
+		  (push :pad lst))
+		(when reduce
+		  (push reduce lst)
+		  (push :reduce lst))
+		(unless (or (and last-p (not (eq direction :right)))
+			    (and first-p (eq direction :right)))
+		  (push t lst)
+		  (push :last-p lst))
+		(push ifc lst)
+		(push lst ret)
+		(setq first-p nil)))
+	  (when (setq stat-elt (assoc elt ergoemacs-status-elements))
+	    (setq ifc (nth 1 stat-elt)
+		  reduce (nth 2 stat-elt)
+		  pad (nth 3 stat-elt)
+		  pad (cond
+		       ((and (eq :center direction)
+			     (and ret (not (eq (car theme-list) elt)))
+			     (not pad)) 'r)
+		       ((and (eq :center direction)
+			     (and ret (not (eq (car theme-list) elt)))
+			     (eq pad 'r)) nil)
+		       ((and (eq :center direction)
+			     (and ret (not (eq (car theme-list) elt)))
+			     (eq pad 'l))
+			;; Modify last interaction, if possible
+			(setq tmp1 (pop ret)
+			      tmp2 (pop tmp1)
+			      tmp3 (plist-get tmp1 :pad))
+			(prog1 'r
+			  ;; drop right padding (if possible)
+			    (cond
+			     ((eq tmp3 'b)
+			      (setq tmp1 (plist-put tmp1 :pad 'l)))
+			     ((eq tmp3 'r)
+			      (setq tmp1 (plist-put tmp1 :pad nil)))))
+			(push tmp2 tmp1)
+			(push tmp1 ret)) 
+		       ;; :center and (not ret)
+		       ((not pad) 'b)
+		       ((eq pad 'l) 'r)
+		       ((eq pad 'r) 'l)
+		       ((eq pad 'b)) nil)
+		  lst nil)
+	    (when pad
+	      (push pad lst)
+	      (push :pad lst))
+	    (when reduce
+	      (push reduce lst)
+	      (push :reduce lst))
+	    (push ifc lst)
+	    (push lst ret))))
+      ret)))
 (defun ergoemacs-status--center ()
-  (setq ergoemacs-status--lhs
-	'(((ergoemacs-status-major-mode-item) :pad b)
-	  ((ergoemacs-status-which-function-mode))
-	  ((ergoemacs-status-use-vc powerline-vc) :reduce 1 :pad r)
-	  ((ergoemacs-status-size-indication-mode) :reduce 2 :pad b)
-	  ((ergoemacs-status-position) :reduce 2 :pad b))
-	ergoemacs-status--center
-	'(((ergoemacs-status-read-only-status mode-icons--read-only-status "%*") :reduce 3 :pad l)
-	  ((ergoemacs-status-buffer-id) :last-p t :pad b)
-	  (((lambda() (and (buffer-file-name) t)) mode-icons--modified-status "%1") :last-p r)
-	  )
-	ergoemacs-status--rhs
-	'(((global-mode-string) :pad r)
-	  ((mode-line-process) :pad r)
-	  ;; ((display-time-mode ))
-	  ;; which-func-mode
-	  ;; mode-line-process
-	  ;; recursive-edit
-	  ;; vc-mode
-	  ;; position (Top, Bottom, location) %p
-	  ;; mode-line-remote
-	  ;; mode-line-client
-	  ((ergoemacs-status-coding (lambda() (not (string= "undecided" (ergoemacs-status--encoding)))) ergoemacs-status--encoding) :pad b :reduce 2)
-	  ((ergoemacs-status-coding (lambda() (not (string= ":" (mode-line-eol-desc)))) mode-icons--mode-line-eol-desc mode-line-eol-desc) :pad l :reduce 2)
-	  ((ergoemacs-status--minor-modes)  :reduce 4)
-	  ((mode-icons--generate-narrow powerline-narrow "%n") :reduce 4 :last-p t)))
+  "Center theme."
+  (setq ergoemacs-status-current
+	'(:left (:major :which :vc :size :position)
+		 :center (:read-only :buffer-id :modified)
+		 :right (:global :process :coding :eol (:minor :narrow))))
+  (ergoemacs-status-current-update)
   (force-mode-line-update))
 
 (defun ergoemacs-status--xah ()
-
-  (setq ergoemacs-status--lhs
-	'(((ergoemacs-status-read-only-status mode-icons--read-only-status "%*") :reduce 3 :pad l)
-	  ((ergoemacs-status-buffer-id) :last-p t :pad b)
-	  (((lambda() (and (buffer-file-name) t)) mode-icons--modified-status "%1") :last-p t)
-	  ((ergoemacs-status-size-indication-mode) :reduce 2 :pad b)
-	  ((ergoemacs-status-position) :reduce 2 :pad b)
-	  ;; ((ergoemacs-status-use-vc powerline-vc) :reduce 1 :pad r)
-	  ((ergoemacs-status-major-mode-item) :pad b))
-	ergoemacs-status--center nil
-	ergoemacs-status--rhs nil)
+  "Xah theme"
+  (setq ergoemacs-status-current
+	'(:left ((:read-only :buffer-id :modified) :size :position :major :global)))
+  (ergoemacs-status-current-update)
   (force-mode-line-update))
 
 (ergoemacs-status--center)
