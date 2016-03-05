@@ -1,0 +1,12 @@
+#+TITLE: ergoemacs-status
+
+* Summary
+A mode like that changes what information is displayed based on window size.
+
+With a small window, only a small amount of information is displayed:
+
+[[./img/small-status.png]]
+
+With a large window, a large amount of information is displayed:
+
+[[./img/large-status.png]]
