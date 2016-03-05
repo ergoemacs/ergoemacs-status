@@ -246,8 +246,6 @@
 	(ergoemacs-status--add-text-property padded-str 'face face)
       padded-str)))
 
-(defvar ergoemacs-old-mode-line-format nil)
-
 (defun ergoemacs-status--set-buffer-file-coding-system (event)
   (interactive "e")
   (with-selected-window (posn-window (event-start event))
@@ -271,7 +269,22 @@
 					(powerline-current-separator)
 					(or (and (eq dir 'left)
 						 (car powerline-default-separator-dir))
-					    (cdr powerline-default-separator-dir)))))))
+					    (cdr powerline-default-separator-dir))))))
+	(args (mapcar
+	       (lambda(f)
+		 (let ((fa (assoc f face-remapping-alist)))
+		   (if fa
+		       (car (cdr fa))
+		     f)))
+	       args))
+	;; (args (mapcar
+	;;        (lambda(f)
+	;; 	 (let ((fr (assoc f face-remapping-alist)))
+	;; 	   (if fr
+	;; 	       (cdr fr)
+	;; 	     fr)))
+	;;        args))
+	)
     (when (fboundp separator)
       (let ((img (apply separator args)))
 	(when (and (listp img) (eq 'image (car img)))
@@ -486,7 +499,8 @@ items `Turn Off', `Hide' and `Help'."
 	      'local-map ergoemacs-status-position-map)))
     (when  (>= (current-column) 80)
       (setq col (propertize col 'face 'error)))
-    (concat (propertize
+    (concat (format-mode-line mode-line-position)
+	    (propertize
 	     (or (and column-number-mode "%4l") "")
 	     'face 'bold
 	     'mouse-face 'mode-line-highlight
@@ -512,7 +526,7 @@ items `Turn Off', `Hide' and `Help'."
 	  ((ergoemacs-status-use-vc powerline-vc) :reduce 1 :pad r))
 	ergoemacs-status--center
 	'(((ergoemacs-status--minor-modes)  :reduce 4)
-	  ((mode-icons--generate-narrow powerline-narrow "%n") :reduce 4)
+	  ((mode-icons--generate-narrow powerline-narrow "%n") :reduce 4 :last-p t)
 	  (" " :reduce 4))
 	ergoemacs-status--rhs
 	'((global-mode-string :pad r)
@@ -552,9 +566,15 @@ items `Turn Off', `Hide' and `Help'."
 	      'local-map ergoemacs-status-major-mode-map
 	      'help-echo "Major mode\nmouse-1: Display major mode menu\nmouse-2: Show help for major mode\nmouse-3: Toggle minor modes"))
 
+(defun ergoemacs-status-which-function-mode ()
+  "Display `which-function-mode' without brackets."
+  (when which-function-mode
+    (substring (format-mode-line which-func-format) 1 -1)))
+
 (defun ergoemacs-status--center ()
   (setq ergoemacs-status--lhs
 	'(((ergoemacs-status-major-mode-item) :pad b)
+	  ((ergoemacs-status-which-function-mode))
 	  ((ergoemacs-status-use-vc powerline-vc) :reduce 1 :pad r)
 	  ((ergoemacs-status-size-indication-mode) :reduce 2 :pad b)
 	  ((ergoemacs-status-position) :reduce 2 :pad b))
@@ -564,7 +584,16 @@ items `Turn Off', `Hide' and `Help'."
 	  (((lambda() (and (buffer-file-name) t)) mode-icons--modified-status "%1") :last-p r)
 	  )
 	ergoemacs-status--rhs
-	'((global-mode-string :pad r)
+	'(((global-mode-string) :pad r)
+	  ((mode-line-process) :pad r)
+	  ;; ((display-time-mode ))
+	  ;; which-func-mode
+	  ;; mode-line-process
+	  ;; recursive-edit
+	  ;; vc-mode
+	  ;; position (Top, Bottom, location) %p
+	  ;; mode-line-remote
+	  ;; mode-line-client
 	  ((ergoemacs-status-coding (lambda() (not (string= "undecided" (ergoemacs-status--encoding)))) ergoemacs-status--encoding) :pad b :reduce 2)
 	  ((ergoemacs-status-coding (lambda() (not (string= ":" (mode-line-eol-desc)))) mode-icons--mode-line-eol-desc mode-line-eol-desc) :pad l :reduce 2)
 	  ((ergoemacs-status--minor-modes)  :reduce 4)
@@ -805,20 +834,89 @@ When WHAT is nil, return the width of the window"
 			  :foundry (face-attribute 'variable-pitch :foundry)
 			  :height 125)))
 
+(defvar ergoemacs-old-mode-line-format nil
+  "Old `mode-line-format'")
+
+(defvar ergoemacs-old-mode-line-front-space nil
+  "Old `mode-line-front-space'.")
+
+(defvar ergoemacs-old-mode-line-mule-info nil
+  "Old `mode-line-mule-info'.")
+
+(defvar ergoemacs-old-mode-line-client nil
+  "Old `mode-line-client'.")
+
+(defvar ergoemacs-old-mode-line-modified nil
+  "Old `mode-line-modified'.")
+
+(defvar ergoemacs-old-mode-line-remote nil
+  "Old `mode-line-remote'.")
+
+(defvar ergoemacs-old-mode-line-frame-identification nil
+  "Old `mode-line-frame-identification'.")
+
+(defvar ergoemacs-old-mode-line-buffer-identification nil
+  "Old `mode-line-buffer-identification'.")
+
+(defvar ergoemacs-old-mode-line-position nil
+  "Old `mode-line-position'.")
+
+(defvar ergoemacs-old-mode-line-modes nil
+  "Old `mode-line-modes'.")
+
+(defvar ergoemacs-old-mode-line-misc-info nil
+  "Old `mode-line-misc-info'.")
+
+(defvar ergoemacs-old-mode-line-end-spaces nil
+  "Old `mode-line-end-spaces'.")
+
 (defun ergoemacs-status-format (&optional restore)
   "Setup `ergoemacs-status' `mode-line-format'."
   (if restore
       (progn
 	(set-default 'mode-line-format
 		     ergoemacs-old-mode-line-format)
+	(setq mode-line-front-space ergoemacs-old-mode-line-front-space
+	      mode-line-mule-info ergoemacs-old-mode-line-mule-info
+	      mode-line-client ergoemacs-old-mode-line-client
+	      mode-line-modified ergoemacs-old-mode-line-modified
+	      mode-line-remote ergoemacs-old-mode-line-remote
+	      mode-line-frame-identification ergoemacs-old-mode-line-frame-identification
+	      mode-line-buffer-identification ergoemacs-old-mode-line-buffer-identification
+	      mode-line-position ergoemacs-old-mode-line-position
+	      mode-line-modes ergoemacs-old-mode-line-modes
+	      mode-line-misc-info ergoemacs-old-mode-line-misc-info
+	      mode-line-end-spaces ergoemacs-old-mode-line-end-spaces)
 	;; FIXME -- restore old in all buffers.
 	)
     (unless ergoemacs-old-mode-line-format
-      (setq ergoemacs-old-mode-line-format mode-line-format))
+      (setq ergoemacs-old-mode-line-format mode-line-format
+	    ergoemacs-old-mode-line-front-space mode-line-front-space
+	    ergoemacs-old-mode-line-mule-info mode-line-mule-info
+	    ergoemacs-old-mode-line-client mode-line-client
+	    ergoemacs-old-mode-line-modified mode-line-modified
+	    ergoemacs-old-mode-line-remote mode-line-remote
+	    ergoemacs-old-mode-line-frame-identification mode-line-frame-identification
+	    ergoemacs-old-mode-line-buffer-identification mode-line-buffer-identification
+	    ergoemacs-old-mode-line-position mode-line-position
+	    ergoemacs-old-mode-line-modes mode-line-modes
+	    ergoemacs-old-mode-line-misc-info mode-line-misc-info
+	    ergoemacs-old-mode-line-end-spaces mode-line-end-spaces))
 
     (setq-default mode-line-format
-		  `("%e"
+		  `("%e" mode-line-front-space
 		    (:eval (ergoemacs-status--eval))))
+    (setq mode-line-front-space (list "")
+	  mode-line-mule-info (list "")
+	  mode-line-client (list "")
+	  mode-line-modified (list "")
+	  mode-line-remote (list "")
+	  mode-line-frame-identification (list "")
+	  mode-line-buffer-identification (list "")
+	  mode-line-position (list "")
+	  mode-line-modes (list "")
+	  mode-line-misc-info (list "")
+	  mode-line-end-spaces (list ""))
     ;; FIXME -- Apply to all buffers.
     (setq mode-line-format `("%e"
 			     (:eval (ergoemacs-status--eval))))
@@ -838,26 +936,6 @@ When WHAT is nil, return the width of the window"
     (when ergoemacs-status-turn-off-mode-icons
       (mode-icons-mode -1))
     (ergoemacs-status-format t)))
-
-;; (ergoemacs-advice mouse-menu-major-mode-map ()
-;;   "Modify to list major modes for `ergoemacs-status'."
-;;   :type :replace
-;;   (ergoemacs-status--major-mode-menu-map))
-
-;; (ergoemacs-advice mode-line-next-buffer (event)
-;;   "Modify mode-line-next-buffer for `ergoemacs-status'"
-;;   :type :around
-;;   (if ergoemacs-status
-;;       (ergoemacs-status-next-buffer event)
-;;     ad-do-it))
-
-;; (ergoemacs-advice mode-line-previous-buffer (event)
-;;   "Modify mode-line-next-buffer for `ergoemacs-status'"
-;;   :type :around
-;;   (if ergoemacs-status
-;;       (ergoemacs-status-previous-buffer event)
-;;     ad-do-it))
-
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
