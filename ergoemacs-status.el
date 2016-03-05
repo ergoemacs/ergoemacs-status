@@ -26,8 +26,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; 
 ;;; Code:
-(require 'powerline)
-(require 'mode-icons)
+(require 'powerline nil t)
+(require 'mode-icons nil t)
 
 (defcustom ergoemacs-status-popup-languages t
   "Allow Swapping of major-modes when clicking the mode-name."
