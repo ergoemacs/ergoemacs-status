@@ -363,8 +363,11 @@ items `Turn Off', `Hide' and `Help'."
   "List of minor modes hidden due to space limitations.")
 
 ;; Adapted from powerline.
-(defvar ergoemacs-status--hidden-minor-modes '(isearch-mode ergoemacs-status-mode)
-  "List of hidden modes and their indicators.")
+(defvar ergoemacs-status--suppressed-minor-modes '(isearch-mode)
+  "List of suppressed minor modes.")
+
+(defvar ergoemacs-status--hidden-minor-modes '()
+  "List of tempoarily hidden modes")
 
 (defun ergoemacs-minor-mode-hide (minor-mode &optional show)
   "Hide a minor-mode based on mode indicator MINOR-MODE."
@@ -393,7 +396,7 @@ items `Turn Off', `Hide' and `Help'."
   "Get a list of the minor-modes"
   (let (ret)
     (dolist (a (reverse minor-mode-alist))
-      (unless (memq (car a) ergoemacs-status--hidden-minor-modes)
+      (unless (memq (car a) (append ergoemacs-status--hidden-minor-modes ergoemacs-status--suppressed-minor-modes))
 	(push a ret)))
     ret))
 
