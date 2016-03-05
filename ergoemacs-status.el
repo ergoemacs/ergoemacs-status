@@ -129,7 +129,7 @@
 			,@menu))
     menu))
 
-(defun ergoemacs-status-next-buffer (event)
+(defun ergoemacs-status-mouse-1-buffer (event)
   "Next ergoemacs buffer"
   (interactive "e")
   (with-selected-window (posn-window (event-start event))
@@ -144,7 +144,7 @@
        (t
 	(ergoemacs-next-user-buffer))))))
 
-(defun ergoemacs-status-previous-buffer (event)
+(defun ergoemacs-status-mouse-3-buffer (event)
   "Prevous ergoemacs buffer"
   (interactive "e")
   (with-selected-window (posn-window (event-start event))
@@ -504,7 +504,7 @@ items `Turn Off', `Hide' and `Help'."
 (defun ergoemacs-status--atom ()
   (setq ergoemacs-status--lhs
 	'(((ergoemacs-status-read-only-status mode-icons--read-only-status "%*") :reduce 3 :pad l)
-	  ((mode-line-buffer-identification) :last-p t :pad b)
+	  ((ergoemacs-status-buffer-id) :last-p t :pad b)
 	  (((lambda() (and (buffer-file-name) t)) mode-icons--modified-status "%1") :last-p t)
 	  ((ergoemacs-status-size-indication-mode) :reduce 2 :pad b)
 	  ((ergoemacs-status-position) :reduce 2 :pad b)
@@ -520,6 +520,20 @@ items `Turn Off', `Hide' and `Help'."
 	  ((mode-icons--generate-major-mode-item powerline-major-mode) :pad l)))
   (force-mode-line-update))
 
+(defvar ergoemacs-status-buffer-id-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mode-line mouse-1] #'ergoemacs-status-mouse-1-buffer)
+    (define-key map [mode-line mouse-3] #'ergoemacs-status-mouse-3-buffer)
+    map)
+  "Keymap for clicking on the buffer status.")
+
+(defun ergoemacs-status-buffer-id ()
+  (propertize "%12b"
+	      'mouse-face 'mode-line-highlight
+	      'face 'mode-line-buffer-id
+	      'local-map ergoemacs-status-buffer-id-map
+	      'help-echo "Buffer name\nBuffer menu"))
+
 (defun ergoemacs-status--center ()
   (setq ergoemacs-status--lhs
 	'(((mode-icons--generate-major-mode-item powerline-major-mode) :pad b)
@@ -528,7 +542,7 @@ items `Turn Off', `Hide' and `Help'."
 	  ((ergoemacs-status-position) :reduce 2 :pad b))
 	ergoemacs-status--center
 	'(((ergoemacs-status-read-only-status mode-icons--read-only-status "%*") :reduce 3 :pad l)
-	  ((mode-line-buffer-identification) :last-p t :pad b)
+	  ((ergoemacs-status-buffer-id) :last-p t :pad b)
 	  (((lambda() (and (buffer-file-name) t)) mode-icons--modified-status "%1") :last-p r)
 	  )
 	ergoemacs-status--rhs
@@ -543,7 +557,7 @@ items `Turn Off', `Hide' and `Help'."
 
   (setq ergoemacs-status--lhs
 	'(((ergoemacs-status-read-only-status mode-icons--read-only-status "%*") :reduce 3 :pad l)
-	  ((mode-line-buffer-identification) :last-p t :pad b)
+	  ((ergoemacs-status-buffer-id) :last-p t :pad b)
 	  (((lambda() (and (buffer-file-name) t)) mode-icons--modified-status "%1") :last-p t)
 	  ((ergoemacs-status-size-indication-mode) :reduce 2 :pad b)
 	  ((ergoemacs-status-position) :reduce 2 :pad b)
