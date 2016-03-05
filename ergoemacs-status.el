@@ -935,12 +935,12 @@ When WHAT is nil, return the width of the window"
 
     (setq-default mode-line-format
 		  `("%e" mode-line-front-space
-		    mode-line-mule-info
-		    mode-line-client
-		    mode-line-modified
-		    mode-line-remote
-		    mode-line-frame-identification
-		    mode-line-buffer-identification
+		    ;; mode-line-mule-info
+		    ;; mode-line-client
+		    ;; mode-line-modified
+		    ;; mode-line-remote
+		    ;; mode-line-frame-identification
+		    ;; mode-line-buffer-identification
 		    ;; mode-line-position -- in position function
 		    ;; mode-line-modes --not changed
 		    (:eval (ergoemacs-status--eval))
