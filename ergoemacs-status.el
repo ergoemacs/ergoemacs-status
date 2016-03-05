@@ -908,7 +908,17 @@ When WHAT is nil, return the width of the window"
 
     (setq-default mode-line-format
 		  `("%e" mode-line-front-space
-		    (:eval (ergoemacs-status--eval))))
+		    mode-line-mule-info
+		    mode-line-client
+		    mode-line-modified
+		    mode-line-remote
+		    mode-line-frame-identification
+		    mode-line-buffer-identification
+		    ;; mode-line-position -- in position function
+		    ;; mode-line-modes --not changed
+		    (:eval (ergoemacs-status--eval))
+		    mode-line-misc-info
+		    mode-line-end-spaces))
     (setq mode-line-front-space (list "")
 	  mode-line-mule-info (list "")
 	  mode-line-client (list "")
@@ -921,8 +931,6 @@ When WHAT is nil, return the width of the window"
 	  mode-line-misc-info (list "")
 	  mode-line-end-spaces (list ""))
     ;; FIXME -- Apply to all buffers.
-    (setq mode-line-format `("%e"
-			     (:eval (ergoemacs-status--eval))))
     (force-mode-line-update)))
 
 (defvar ergoemacs-status-turn-off-mode-icons nil)
