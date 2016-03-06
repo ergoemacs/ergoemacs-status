@@ -146,7 +146,10 @@
     menu))
 
 (defun ergoemacs-status-mouse-1-buffer (event)
-  "Next ergoemacs buffer"
+  "Next ergoemacs buffer.
+
+EVENT is where the mouse-click occured and is used to figure out
+what window is associated with the mode-line click."
   (interactive "e")
   (with-selected-window (posn-window (event-start event))
     (let ((emacs-buffer-p (string-match-p "^[*]" (buffer-name))))
@@ -161,7 +164,10 @@
 	(ergoemacs-next-user-buffer))))))
 
 (defun ergoemacs-status-mouse-3-buffer (event)
-  "Prevous ergoemacs buffer"
+  "Prevous ergoemacs buffer.
+
+EVENT is where the mouse clicked and is used to figure out which
+buffer is selected with mode-line click."
   (interactive "e")
   (with-selected-window (posn-window (event-start event))
     (let ((emacs-buffer-p (string-match-p "^[*]" (buffer-name))))
@@ -186,7 +192,7 @@
   :group 'ergoemacs-status)
 
 (defcustom ergoemacs-status-coding t
-  "Include coding system information in `mode-line-format'"
+  "Include coding system information in `mode-line-format'."
   :type 'boolean
   :group 'ergoemacs-status)
 
@@ -279,7 +285,8 @@
 
 (defvar powerline-default-separator-dir)
 (defun ergoemacs-status--sep (dir &rest args)
-  "Separator"
+  "Separator with DIR.
+The additional ARGS are the fonts applied.  This uses `powerline' functions."
   (let ((separator (and (fboundp #'powerline-current-separator)
 			(intern (format "powerline-%s-%s"
 					(powerline-current-separator)
@@ -292,20 +299,12 @@
 		   (if fa
 		       (car (cdr fa))
 		     f)))
-	       args))
-	;; (args (mapcar
-	;;        (lambda(f)
-	;; 	 (let ((fr (assoc f face-remapping-alist)))
-	;; 	   (if fr
-	;; 	       (cdr fr)
-	;; 	     fr)))
-	;;        args))
-	)
+	       args)))
     (when (fboundp separator)
       (let ((img (apply separator args)))
 	(when (and (listp img) (eq 'image (car img)))
 	  (propertize " " 'display img
-		       'face (plist-get (cdr img) :face)))))))
+		      'face (plist-get (cdr img) :face)))))))
 
 (defvar ergoemacs-status--lhs nil)
 (defvar ergoemacs-status--center nil)
@@ -741,82 +740,78 @@ This is a list of element recognized by `ergoemacs-status-mode'."
 (ergoemacs-status--center)
 
 (defun ergoemacs-status--eval-center (mode-line face1 _face2 &optional reduce)
-  (ergoemacs-status--stack ergoemacs-status--center (list mode-line face1) 'center reduce))
+  (ergoemacs-status--stack ergoemacs-status--center mode-line face1 'center reduce))
 
 (defun ergoemacs-status--eval-lhs (mode-line face1 _face2 &optional reduce)
-  (ergoemacs-status--stack ergoemacs-status--lhs (list mode-line face1) 'left reduce))
+  (ergoemacs-status--stack ergoemacs-status--lhs mode-line face1 'left reduce))
 
 (defun ergoemacs-status--eval-rhs (mode-line face1 _face2 &optional reduce)
-  (ergoemacs-status--stack ergoemacs-status--rhs (list mode-line face1) 'right reduce))
+  (ergoemacs-status--stack ergoemacs-status--rhs mode-line face1 'right reduce))
 
-(defun ergoemacs-status--stack (mode-line-list face-list dir &optional reduction-level)
-  "Stacks mode-line elements"
-  (let ((face-i (if (eq dir 'center) 0 -1))
-	(len (length face-list))
-	(last-face (nth 0 face-list))
-	cur-face final tmp
-	(mode-line-list mode-line-list)
-	last-reduced-p)
-    (when (eq dir 'right)
-      (setq mode-line-list (reverse mode-line-list)))
-    (setq final (apply 'append
-		       (mapcar
-			(lambda(elt)
-			   (unless (eq dir 'center)
-			    (setq face-i (1+ face-i)))
-			  (let* ((ifs (car elt))
-				 (plist (cdr elt))
-				 (reduce (plist-get plist :reduce))
-				 tmp
-				 ret)
-			    (if (and reduce (integerp reduce)
-				     reduction-level (integerp reduction-level)
-				     (<= reduce reduction-level))
-				(progn
-				  (unless (eq dir 'center)
-				    (setq face-i (- face-i 1)))
-				  (setq last-reduced-p t)
-				  nil)
-			      (when (and (not (eq dir 'center)) (plist-get plist :last-p))
-				(unless last-reduced-p
-				  (setq face-i (- face-i 1)
-					last-reduced-p nil)))
-			      (setq cur-face (nth (mod face-i len) face-list))
-			      (setq tmp (ergoemacs-status--if ifs cur-face (plist-get plist :pad)))
-			      (if (and tmp (stringp tmp) (string= (format-mode-line tmp) ""))
-				  (if (or (eq dir 'center) (plist-get plist :last-p) last-reduced-p) nil
-				    (setq face-i (- face-i 1))
-				    nil)
-				(setq last-reduced-p nil) 
-				(push tmp ret)
-				(unless (eq cur-face last-face)
-				  (cond
-				   ((eq dir 'left)
-				    (push (ergoemacs-status--sep dir last-face cur-face) ret))
-				   ((eq dir 'right)
-				    (push (ergoemacs-status--sep dir cur-face last-face) ret))))
-				(setq last-face cur-face))
-			      ret)))
-			mode-line-list))
-	  cur-face (car (last face-list)))
-    (unless (eq last-face cur-face)
-      (setq final (append final
-			  (list (cond
-				 ((eq dir 'left)
-				  (ergoemacs-status--sep dir last-face cur-face))
-				 ((eq dir 'right)
-				  (ergoemacs-status--sep dir cur-face last-face)))))))
-    (dolist (elt (reverse final))
-      (when elt
-	(push elt tmp)))
-    (setq final tmp)    
-    (when (and final (eq dir 'center))
-      (setq final (append (list (ergoemacs-status--sep 'left (car (last face-list)) (nth 0 face-list)))
-			  final
-			  (list (ergoemacs-status--sep 'right (nth 0 face-list) (car (last face-list)))))))
-    (when (eq dir 'right)
-      (setq final (reverse final)))
-    (or final "")))
+(defun ergoemacs-status--stack (mode-line-list face1 face2 dir &optional reduction-level)
+  "Stacks mode-line elements."
+  (let* (ret
+	 (face-list (list face1 face2))
+	 (len (length face-list))
+	 (i 0)
+	 plist ifs reduce
+	 (lst (if (eq dir 'right)
+		  mode-line-list
+		(reverse mode-line-list)))
+	 last-face cur-face tmp)
+    (dolist (elt lst)
+      (setq ifs (car elt)
+	    plist (cdr elt)
+	    reduce (plist-get plist :reduce))
+      (unless (and reduce (integerp reduce)
+		   reduction-level (integerp reduction-level)
+		   (<= reduce reduction-level))
+	;; Still in the running.
+	(setq tmp (ergoemacs-status--if ifs (nth (mod i len) face-list) (plist-get plist :pad)))
+	(unless (and tmp (stringp tmp) (string= (format-mode-line tmp) ""))
+	  (unless (or (plist-get plist :last-p) (eq dir 'center))
+	    (setq i (1+ i)))
+	  (push tmp ret))))
+    (when (eq (get-text-property 0 'face (format-mode-line (nth 0 ret)))
+		(nth 1 face-list))
+      ;; Reverse faces
+      (setq ret (mapcar (lambda(elt)
+      			  (cond
+      			   ((eq (get-text-property 0 'face elt) (nth 0 face-list))
+      			    (propertize elt 'face (nth 1 face-list)))
+      			   ((eq (get-text-property 0 'face elt) (nth 1 face-list))
+      			    (propertize elt 'face (nth 0 face-list)))
+      			   (t elt)))
+      			ret)))
+    ;; Add separators
+    (setq last-face (get-text-property 0 'face (nth 0 ret))
+	  ret (mapcar
+	       (lambda(elt)
+		 (setq cur-face (get-text-property 0 'face elt))
+		 (prog1
+		     (cond
+		      ((eq cur-face last-face) elt)
+		      ((eq dir 'left)
+		       (concat (ergoemacs-status--sep dir last-face cur-face) elt))
+		      ((eq dir 'right)
+		       (concat elt (ergoemacs-status--sep dir cur-face last-face)))
+		      ((eq dir 'center)
+		       elt))
+		   (setq last-face cur-face)))
+	       ret))
+    (cond
+     ((eq dir 'center)
+      (setq ret (append (list (ergoemacs-status--sep 'left face2 face1))
+  			  ret
+  			  (list (ergoemacs-status--sep 'right face1 face2)))))
+     ((eq last-face face2))
+     ((eq dir 'left)
+      (setq ret (append ret (list (ergoemacs-status--sep dir last-face face2)))))
+     ((eq dir 'right)
+      (setq ret (append ret (list (ergoemacs-status--sep dir face2 last-face))))))
+    (setq ret (if (eq dir 'right)
+		  (reverse ret)
+		ret))))
 
 (defcustom ergoemacs-status-extra-width 0
   "Extra width to add."
