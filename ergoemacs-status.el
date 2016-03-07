@@ -895,7 +895,6 @@ element with `ergoemacs-status-down-element' element."
 	   ;; (center (mapcar (lambda(elt) (ergoemacs-status-swap-hover-- elt hover)) (plist-get ergoemacs-status-current :center)))
 	   ;; (right (mapcar (lambda(elt) (ergoemacs-status-swap-hover-- elt hover)) (plist-get ergoemacs-status-current :right)))
 	   tmp)
-      (message "%s->%s" down hover-region)
       (cond
        ;; Same element.
        ((and (eq down hover-region) (eq down 'left))
@@ -992,10 +991,8 @@ element with `ergoemacs-status-down-element' element."
     (force-mode-line-update)))
 
 (defun ergoemacs-status--modify-map (map)
-  "Modify MAP to include context menu.
-
-This also modifies key [down-mouse-1] to [mouse-1] in preparation
-for drag-and-drop support."
+  "Modify MAP to include context menu. Also allows arrangment
+with C- M- or S- dragging of elements."
   (let ((map map)
 	down-mouse-1
 	mouse-1 tmp)
@@ -1006,12 +1003,15 @@ for drag-and-drop support."
 	      (memq tmp '(ergoemacs-ignore ignore)))
       ;; (message "Add to %s" elt)
       (define-key map [mode-line mouse-3] #'ergoemacs-status-right-click))
-    (setq down-mouse-1 (lookup-key map [mode-line down-mouse-1])
-	  mouse-1 (lookup-key map [mode-line mouse-1]))
-    (when (and down-mouse-1 (or (not mouse-1) (memq mouse-1 '(ignore ergoemacs-ignore))))
-      (define-key map [mode-line mouse-1] down-mouse-1)
-      (define-key map [mode-line down-mouse-1] #'ergoemacs-status-down)
-      (define-key map [mode-line drag-mouse-1] #'ergoemacs-status-drag))
+    (define-key map [mode-line C-down-mouse-1] #'ergoemacs-status-down)
+    (define-key map [mode-line M-down-mouse-1] #'ergoemacs-status-down)
+    (define-key map [mode-line S-down-mouse-1] #'ergoemacs-status-down)
+    ;; (setq down-mouse-1 (lookup-key map [mode-line down-mouse-1])
+    ;; 	  mouse-1 (lookup-key map [mode-line mouse-1]))
+    ;; (when (and down-mouse-1 (or (not mouse-1) (memq mouse-1 '(ignore ergoemacs-ignore))))
+    ;;   (define-key map [mode-line mouse-1] down-mouse-1)
+    ;;   (define-key map [mode-line down-mouse-1] #'ergoemacs-status-down)
+    ;;   (define-key map [mode-line drag-mouse-1] #'ergoemacs-status-drag))
     map))
 
 (defun ergoemacs-status--stack (mode-line-list face1 face2 dir &optional reduction-level)
