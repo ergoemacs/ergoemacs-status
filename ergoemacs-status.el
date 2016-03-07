@@ -587,7 +587,7 @@ This function also saves your prefrences to
     (:buffer-id (ergoemacs-status-buffer-id) nil nil "Buffer Name")
     (:modified (ergoemacs-status--modified) nil nil "Modified Indicator")
     (:size (ergoemacs-status-size-indication-mode) 2 nil "Buffer Size")
-    (:position (ergoemacs-status-position) 2 "Line/Column")
+    (:position (ergoemacs-status-position) 2 nil "Line/Column")
     (:vc (ergoemacs-status-use-vc powerline-vc) 1 l "Version Control")
     (:minor (ergoemacs-status--minor-modes)  4 r "Minor Mode List")
     (:narrow (mode-icons--generate-narrow) 4 r "Narrow Indicator")
@@ -638,11 +638,11 @@ When DONT-POPUP is non-nil, just return the menu"
   (let ((map (make-sparse-keymap "Display Status Bar"))
 	(i 0)
 	tmp)
-    (dolist (elt (append (plist-get ergoemacs-status-current :left)
-			 (list "--")
-			 (plist-get ergoemacs-status-current :center)
-			 (list "--")
-			 (plist-get ergoemacs-status-current :right)))
+    (dolist (elt (reverse (append (plist-get ergoemacs-status-current :left)
+				  (list "--")
+				  (plist-get ergoemacs-status-current :center)
+				  (list "--")
+				  (plist-get ergoemacs-status-current :right))))
       (cond
        ((equal elt "--")
 	(define-key map (vector (intern (format "status-element-popup-sep-%s" i))) '(menu-item  "---")))
@@ -1179,6 +1179,13 @@ When WHAT is nil, return the width of the window"
 
 (defvar mode-icons-cached-mode-name)
 
+(defvar ergoemacs-status--eval-blank-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mode-line mouse-3] #'ergoemacs-status-right-click)
+    (define-key map [mode-line down-mouse-1] #'mouse-drag-mode-line)
+    map)
+  "Keymap for the filling spaces.")
+
 (defun ergoemacs-status--eval ()
   (if ergoemacs-stats--ignore-eval-p ""
     ;; This will dynamically grow/fill areas
@@ -1204,7 +1211,7 @@ When WHAT is nil, return the width of the window"
 	    center (ergoemacs-status--eval-center mode-line face1 face2)
 	    wlhs (ergoemacs-status--eval-width lhs)
 	    wrhs (ergoemacs-status--eval-width rhs)
-	    wcenter (ergoemacs-status--eval-width center))
+	    wcenter (ergoemacs-status--eval-width center)) 
       (when (> (+ wlhs wrhs wcenter) (ergoemacs-status--eval-width))
 	(setq mode-icons-read-only-space nil
 	      mode-icons-show-mode-name nil
@@ -1238,11 +1245,13 @@ When WHAT is nil, return the width of the window"
       (prog1
 	  (set (make-local-variable 'ergoemacs-status--eval)
 		(list lhs
-		      (propertize " " 'display `((space :width ,available))
-				  'face face1)
+		      (propertize (make-string (floor available) ? ) 'display `((space :width ,available))
+				  'face face1
+				  'local-map ergoemacs-status--eval-blank-map)
 		      center
-		      (propertize " " 'display `((space :width ,available))
-				  'face face1)
+		      (propertize (make-string (floor available) ? ) 'display `((space :width ,available))
+				  'face face1
+				  'local-map ergoemacs-status--eval-blank-map)
 		      rhs))
 	(set (make-local-variable 'ergoemacs-status--eval)
 	      (mapcar
