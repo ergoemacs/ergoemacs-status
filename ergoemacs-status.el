@@ -73,8 +73,10 @@
   (interactive)
   (or ergoemacs-status--major-mode-menu-map
       (set (make-local-variable 'ergoemacs-status--major-mode-menu-map)
+	   ;; This require `ergoemacs-mode'.
 	   (let ((map (and ergoemacs-status-popup-languages
 			   ;; Mode in menu
+			   (boundp 'ergoemacs-menu--get-major-modes)
 			   (memq major-mode ergoemacs-menu--get-major-modes)
 			   (key-binding [menu-bar languages])))
 		 mmap)
@@ -165,12 +167,12 @@ what window is associated with the mode-line click."
       (cond
        ((functionp ergoemacs-status-change-buffer)
 	(popup-menu (ergoemacs-status-menu)))
-       ((not ergoemacs-status-change-buffer)
-	(next-buffer))
-       (emacs-buffer-p
+       ((and ergoemacs-status-change-buffer emacs-buffer-p (fboundp #'ergoemacs-next-emacs-buffer))
 	(ergoemacs-next-emacs-buffer))
+       ((and ergoemacs-status-change-buffer (fboundp #'ergoemacs-next-user-buffer))
+	(ergoemacs-next-user-buffer))
        (t
-	(ergoemacs-next-user-buffer))))))
+	(next-buffer))))))
 
 (defun ergoemacs-status-mouse-3-buffer (event)
   "Prevous ergoemacs buffer.
@@ -183,12 +185,12 @@ buffer is selected with mode-line click."
       (cond
        ((functionp ergoemacs-status-change-buffer)
 	(popup-menu (ergoemacs-status-menu)))
-       ((not ergoemacs-status-change-buffer)
-	(previous-buffer))
-       (emacs-buffer-p
+       ((and ergoemacs-status-change-buffer emacs-buffer-p (fboundp #'ergoemacs-previous-emacs-buffer))
 	(ergoemacs-previous-emacs-buffer))
+       ((and ergoemacs-status-change-buffer (fboundp #'ergoemacs-previous-user-buffer))
+	(ergoemacs-previous-user-buffer))
        (t
-	(ergoemacs-previous-user-buffer))))))
+	(previous-buffer))))))
 
 (defcustom ergoemacs-status-minor-modes t
   "Include minor-modes in `mode-line-format'."
