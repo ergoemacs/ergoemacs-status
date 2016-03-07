@@ -61,6 +61,11 @@
 	  (const :tag "Use emacs default method." nil))
   :group 'ergoemacs-status)
 
+(defface ergoemacs-status-selected-element
+  '((t :background "#e6c200" :foreground "#0024e6" :inherit mode-line))
+  "Face for the modeline in buffers with Flycheck errors."
+  :group 'ergoemacs-status)
+
 (defvar ergoemacs-status--major-mode-menu-map nil)
 
 (defun ergoemacs-status--major-mode-menu-map (&optional _)
@@ -523,14 +528,14 @@ This function also saves your prefrences to
 
 (defvar ergoemacs-status-position-map
   (let ((map (copy-keymap mode-line-column-line-number-mode-map)))
-    (define-key map [mode-line down-mouse-3]
-      (lookup-key map [mode-line down-mouse-1]))
-    (define-key (lookup-key map [mode-line down-mouse-3])
-      [size-indication-mode]
-      '(menu-item "Display Buffer Size"
-		  size-indication-mode
-		  :help "Toggle displaying file size in the mode-line"
-		  :button (:toggle . size-indication-mode)))
+    ;; (define-key map [mode-line down-mouse-3]
+    ;;   (lookup-key map [mode-line down-mouse-1]))
+    ;; (define-key (lookup-key map [mode-line down-mouse-3])
+    ;;   [size-indication-mode]
+    ;;   '(menu-item "Display Buffer Size"
+    ;; 		  size-indication-mode
+    ;; 		  :help "Toggle displaying file size in the mode-line"
+    ;; 		  :button (:toggle . size-indication-mode)))
     (define-key map [mode-line down-mouse-1] 'ignore)
     (define-key map [mode-line mouse-1] 'ergoemacs-status-goto-line)
     map)
@@ -621,13 +626,38 @@ This is a list of element recognized by `ergoemacs-status-mode'."
   (ergoemacs-status-current-update)
   (force-mode-line-update))
 
-(defun ergoemacs-status-elements-popup ()
-  "Popup menu about displayed `ergoemacs-status' elements"
-  (let ((map (make-sparse-keymap "Display Status Bar")))
-    (dolist (elt ergoemacs-status-elements)
-      (define-key map (vector (car elt))
-	`(menu-item ,(nth 4 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
-		    :button (:toggle . (not (memq ,(car elt) ergoemacs-status--suppressed-elements))))))
+(defun ergoemacs-status-right-click (event)
+  "Right click context menu for EVENT."
+  (interactive "e")
+  (with-selected-window (posn-window (event-start event))
+    (ergoemacs-status-elements-popup)))
+
+(defun ergoemacs-status-elements-popup (&optional dont-popup)
+  "Popup menu about displayed `ergoemacs-status' elements.
+When DONT-POPUP is non-nil, just return the menu"
+  (let ((map (make-sparse-keymap "Display Status Bar"))
+	(i 0)
+	tmp)
+    (dolist (elt (append (plist-get ergoemacs-status-current :left)
+			 (list "--")
+			 (plist-get ergoemacs-status-current :center)
+			 (list "--")
+			 (plist-get ergoemacs-status-current :right)))
+      (cond
+       ((equal elt "--")
+	(define-key map (vector (intern (format "status-element-popup-sep-%s" i))) '(menu-item  "---")))
+       ((consp elt)
+	(dolist (group-elt elt)
+	  (when (setq elt (assoc group-elt ergoemacs-status-elements))
+	    (define-key map (vector (car elt))
+	      `(menu-item ,(nth 4 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
+			  :button (:toggle . (not (memq ,(car elt) ergoemacs-status--suppressed-elements))))))))
+       (t
+	(when (setq elt (assoc elt ergoemacs-status-elements))
+	  (define-key map (vector (car elt))
+	    `(menu-item ,(nth 4 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
+			:button (:toggle . (not (memq ,(car elt) ergoemacs-status--suppressed-elements))))))))
+      (setq i (1+ i)))
     (popup-menu map)))
 
 (defvar ergoemacs-status-current nil
@@ -659,7 +689,7 @@ This is a list of element recognized by `ergoemacs-status-mode'."
 
 (defvar ergoemacs-status-major-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map [mode-line down-mouse-3] (lookup-key mode-line-major-mode-keymap [mode-line down-mouse-3]))
+    (define-key map [mode-line down -mouse-3] (lookup-key mode-line-major-mode-keymap [mode-line down-mouse-3]))
     (define-key map [mode-line mouse-2] #'describe-mode)
     (define-key map [mode-line down-mouse-1]
       `(menu-item "Menu Bar" ignore :filter ergoemacs-status--major-mode-menu-map))
@@ -820,9 +850,169 @@ This is a list of element recognized by `ergoemacs-status-mode'."
 (defun ergoemacs-status--eval-rhs (mode-line face1 _face2 &optional reduce)
   (ergoemacs-status--stack ergoemacs-status--rhs mode-line face1 'right reduce))
 
-(defun eroemacs-status-drag (event)
-  "Handle Drag events on `mode-line'."
-  (message "drag: %s" event))
+
+(defvar ergoemacs-status-down-element nil)
+
+(defvar ergoemacs-status--eval nil)
+
+(defun ergoemacs-status-hover (x-position)
+  "Get the hover element at the X-POSITION."
+  (let ((i 0))
+    (catch 'found
+      (dolist (elt ergoemacs-status--eval)
+	(setq i (+ i (nth 1 elt)))
+	(when (<= x-position i)
+	  (throw 'found (nth 0 elt))))
+      nil)))
+
+(defun ergoemacs-status-swap-hover-- (elt hover)
+  "Internal function for `ergoemacs-status-swap-hover'.
+Swaps ELT based on HOVER element and `ergoemacs-status-down-element'"
+  (cond
+   ((equal elt hover)
+    ergoemacs-status-down-element)
+   ((equal elt ergoemacs-status-down-element)
+    hover)
+   (t elt)))
+
+(defun ergoemacs-status-swap-hover (hover)
+  "Change `ergoemacs-status-current' baesd on swapping HOVER
+element with `ergoemacs-status-down-element' element."
+  (when ergoemacs-status-down-element
+    (let* ((left (plist-get ergoemacs-status-current :left))
+	   (center (plist-get ergoemacs-status-current :center))
+	   (right (plist-get ergoemacs-status-current :right))
+	   (down (cond
+		  ((member ergoemacs-status-down-element left) 'left)
+		  ((member ergoemacs-status-down-element center) 'center)
+		  ((member ergoemacs-status-down-element right) 'right)))
+	   (hover-region (cond
+			  ((member hover left) 'left)
+			  ((member hover center) 'center)
+			  ((member hover right) 'right)))
+	   ;; (left-p (member ergoemacs-status-down-element left))
+	   ;; (left (mapcar (lambda(elt) (ergoemacs-status-swap-hover-- elt hover)) (plist-get ergoemacs-status-current :left)))
+	   ;; (center (mapcar (lambda(elt) (ergoemacs-status-swap-hover-- elt hover)) (plist-get ergoemacs-status-current :center)))
+	   ;; (right (mapcar (lambda(elt) (ergoemacs-status-swap-hover-- elt hover)) (plist-get ergoemacs-status-current :right)))
+	   tmp)
+      (message "%s->%s" down hover-region)
+      (cond
+       ;; Same element.
+       ((and (eq down hover-region) (eq down 'left))
+	(setq left (mapcar (lambda(elt) (ergoemacs-status-swap-hover-- elt hover)) left)))
+       ((and (eq down hover-region) (eq down 'center))
+	(setq center (mapcar (lambda(elt) (ergoemacs-status-swap-hover-- elt hover)) center)))
+       ((and (eq down hover-region) (eq down 'right))
+	(setq right (mapcar (lambda(elt) (ergoemacs-status-swap-hover-- elt hover)) right)))
+       ;; left->center
+       ((and (eq down 'left) (eq hover-region 'center))
+	(setq left (reverse left))
+	(push (pop left) center)
+	(setq left (reverse left)))
+       ;; center->left
+       ((and (eq down 'center) (eq hover-region 'left))
+	(setq left (reverse left))
+	(push (pop center) left)
+	(setq left (reverse left)))
+       ;; left->right
+       ((and (eq down 'left) (eq hover-region 'right))
+	(setq left (reverse left))
+	(push (pop left) right)
+	(setq left (reverse left)))
+       ;; right->left
+       ((and (eq down 'right) (eq hover-region 'left))
+	(setq left (reverse left))
+	(push (pop right) left)
+	(setq left (reverse left)))
+       ;; center->right
+       ((and (eq down 'center) (eq hover-region 'right))
+	(setq center (reverse center))
+	(push (pop center) right)
+	(setq center (reverse center)))
+       ;; right->center
+       ((and (eq down 'right) (eq hover-region 'center))
+	(setq center (reverse center))
+	(push (pop right) center)
+	(setq center (reverse center)))
+       )
+      (setq ergoemacs-status-current `(:left ,left :center ,center :right ,right))
+      (ergoemacs-status-current-update)
+      (force-mode-line-update))))
+
+(defun ergoemacs-status-down (start-event)
+  "Handle down-mouse events on `mode-line'."
+  (interactive "e")
+  (let* ((start (event-start start-event))
+	 (window (posn-window start))
+	 (frame (window-frame window))
+	 (object (posn-object start))
+	 (minibuffer-window (minibuffer-window frame))
+	 (element (and (stringp (car object))
+		       (get-text-property (cdr object) :element (car object))))
+	 hover finished event position)
+    (setq ergoemacs-status-down-element element)
+    (force-mode-line-update)
+    (track-mouse
+      (while (not finished)
+	(setq event (read-event)
+	      position (mouse-position))
+	;; Do nothing if
+	;;   - there is a switch-frame event.
+	;;   - the mouse isn't in the frame that we started in
+	;;   - the mouse isn't in any Emacs frame
+	;; Drag if
+	;;   - there is a mouse-movement event
+	;;   - there is a scroll-bar-movement event (Why? -- cyd)
+	;;     (same as mouse movement for our purposes)
+	;; Quit if
+	;;   - there is a keyboard event or some other unknown event.
+	(cond
+	 ((not (consp event))
+	  (setq finished t))
+	 ((memq (car event) '(switch-frame select-window))
+	  nil)
+	 ((not (memq (car event) '(mouse-movement scroll-bar-movement)))
+	  (when (consp event)
+	    ;; Do not unread a drag-mouse-1 event to avoid selecting
+	    ;; some other window.  For vertical line dragging do not
+	    ;; unread mouse-1 events either (but only if we dragged at
+	    ;; least once to allow mouse-1 clicks get through).
+	    (unless (eq (car event) 'drag-mouse-1)
+	      (push event unread-command-events)))
+	  (setq finished t))
+	 ((not (and (eq (car position) frame)
+		    (cadr position)))
+	  nil))
+	(when (and (not finished))
+	  (setq hover (ergoemacs-status-hover (car (cdr position))))
+	  (when hover
+	    (ergoemacs-status-swap-hover hover)))))
+    (setq ergoemacs-status-down-element nil)
+    (ergoemacs-status-save-file)
+    (force-mode-line-update)))
+
+(defun ergoemacs-status--modify-map (map)
+  "Modify MAP to include context menu.
+
+This also modifies key [down-mouse-1] to [mouse-1] in preparation
+for drag-and-drop support."
+  (let ((map map)
+	down-mouse-1
+	mouse-1 tmp)
+    (if (not map)
+	(setq map (make-sparse-keymap))
+      (setq map (copy-keymap map)))
+    (when (or (not (setq tmp (lookup-key map [mode-line mouse-3])))
+	      (memq tmp '(ergoemacs-ignore ignore)))
+      ;; (message "Add to %s" elt)
+      (define-key map [mode-line mouse-3] #'ergoemacs-status-right-click))
+    (setq down-mouse-1 (lookup-key map [mode-line down-mouse-1])
+	  mouse-1 (lookup-key map [mode-line mouse-1]))
+    (when (and down-mouse-1 (or (not mouse-1) (memq mouse-1 '(ignore ergoemacs-ignore))))
+      (define-key map [mode-line mouse-1] down-mouse-1)
+      (define-key map [mode-line down-mouse-1] #'ergoemacs-status-down)
+      (define-key map [mode-line drag-mouse-1] #'ergoemacs-status-drag))
+    map))
 
 (defun ergoemacs-status--stack (mode-line-list face1 face2 dir &optional reduction-level)
   "Stacks mode-line elements."
@@ -843,12 +1033,15 @@ This is a list of element recognized by `ergoemacs-status-mode'."
 		   reduction-level (integerp reduction-level)
 		   (<= reduce reduction-level))
 	;; Still in the running.
-	(setq tmp (ergoemacs-status--if ifs (nth (mod i len) face-list) (plist-get plist :pad)))
+	(setq tmp (ergoemacs-status--if ifs (if (and ergoemacs-status-down-element
+						     (equal (plist-get plist :element) ergoemacs-status-down-element))
+						'ergoemacs-status-selected-element 
+					      (nth (mod i len) face-list))
+					(plist-get plist :pad)))
 	(unless (and tmp (stringp tmp) (string= (format-mode-line tmp) ""))
 	  (unless (or (plist-get plist :last-p) (eq dir 'center))
 	    (setq i (1+ i)))
-	  (setq tmp (propertize tmp
-		      :element (plist-get plist :element)))
+	  (setq tmp (propertize tmp :element (plist-get plist :element)))
 	  (push tmp ret))))
     (when (eq (get-text-property 0 'face (format-mode-line (nth 0 ret)))
 		(nth 1 face-list))
@@ -861,6 +1054,15 @@ This is a list of element recognized by `ergoemacs-status-mode'."
       			    (propertize elt 'face (nth 0 face-list)))
       			   (t elt)))
       			ret)))
+    ;; Fix keys -- Right click brings up conext menu.
+    (setq ret (mapcar
+	       (lambda(elt)
+		 (mapconcat
+		  (lambda (mm)
+		    (propertize mm 'local-map (ergoemacs-status--modify-map (get-text-property 0 'local-map mm))))
+		  (ergoemacs-status--property-substrings elt 'local-map)
+		  ""))
+	       ret))
     ;; Add separators
     (setq last-face (get-text-property 0 'face (nth 0 ret))
 	  ret (mapcar
@@ -1022,13 +1224,22 @@ When WHAT is nil, return the width of the window"
       (if ergoemacs-status--pixel-width-p
 	  (setq available (list available)))
       ;; (message "a: %s (%3.1f %3.1f %3.1f; %3.1f)" available wlhs wrhs wcenter (ergoemacs-status--eval-width))
-      (list lhs
-	    (propertize " " 'display `((space :width ,available))
-			'face face1)
-	    center
-	    (propertize " " 'display `((space :width ,available))
-			'face face1)
-	    rhs))))
+      (prog1
+	  (set (make-local-variable 'ergoemacs-status--eval)
+		(list lhs
+		      (propertize " " 'display `((space :width ,available))
+				  'face face1)
+		      center
+		      (propertize " " 'display `((space :width ,available))
+				  'face face1)
+		      rhs))
+	(set (make-local-variable 'ergoemacs-status--eval)
+	      (mapcar
+	       (lambda(x)
+		 (list (get-text-property 0 :element x)
+		       (or (ignore-errors (ergoemacs-status--eval-width x))
+			   available)))
+	       (ergoemacs-status--property-substrings (format-mode-line ergoemacs-status--eval) :element)))))))
 
 (defun ergoemacs-status--variable-pitch (&optional frame)
   (dolist (face '(mode-line mode-line-inactive
@@ -1076,6 +1287,9 @@ When WHAT is nil, return the width of the window"
 (defvar ergoemacs-old-mode-line-end-spaces nil
   "Old `mode-line-end-spaces'.")
 
+(defvar ergoemacs-status-save-mouse-3 nil
+  "Old mouse-3")
+
 (defun ergoemacs-status-format (&optional restore)
   "Setup `ergoemacs-status' `mode-line-format'."
   (if restore
@@ -1093,7 +1307,8 @@ When WHAT is nil, return the width of the window"
 	      mode-line-modes ergoemacs-old-mode-line-modes
 	      mode-line-misc-info ergoemacs-old-mode-line-misc-info
 	      mode-line-end-spaces ergoemacs-old-mode-line-end-spaces)
-	;; FIXME -- restore old in all buffers.
+	(define-key global-map [mode-line mouse-3] (symbol-value ergoemacs-status-save-mouse-3))
+	;; FIXME -- restore old in all buffers.e
 	)
     (unless ergoemacs-old-mode-line-format
       (setq ergoemacs-old-mode-line-format mode-line-format
@@ -1107,7 +1322,8 @@ When WHAT is nil, return the width of the window"
 	    ergoemacs-old-mode-line-position mode-line-position
 	    ergoemacs-old-mode-line-modes mode-line-modes
 	    ergoemacs-old-mode-line-misc-info mode-line-misc-info
-	    ergoemacs-old-mode-line-end-spaces mode-line-end-spaces))
+	    ergoemacs-old-mode-line-end-spaces mode-line-end-spaces
+	    ergoemacs-status-save-mouse-3 (key-binding [mode-line mouse-3])))
 
     (setq-default mode-line-format
 		  `("%e" mode-line-front-space
