@@ -418,7 +418,7 @@ When DONT-POPUP is non-nil, return the menu without actually popping up the menu
   "Hide a minor-mode based on mode indicator MINOR-MODE.
 
 When SHOW is non-nil, show instead of hide the MINOR-MODE.
-u
+
 This function also saves your prefrences to
 `ergoemacs-status-file' by calling the function
 `ergoemacs-status-save-file'."
@@ -586,8 +586,9 @@ This function also saves your prefrences to
   '((:read-only (ergoemacs-status--read-only) 3 nil "Read Only Indicator")
     (:buffer-id (ergoemacs-status-buffer-id) nil nil "Buffer Name")
     (:modified (ergoemacs-status--modified) nil nil "Modified Indicator")
-    (:size (ergoemacs-status-size-indication-mode) 2 nil "Buffer Size")
-    (:position (ergoemacs-status-position) 2 nil "Line/Column")
+    (:size (ergoemacs-status-size-indication-mode) 2 nil (("Buffer Size" size-indication-mode)))
+    (:position (ergoemacs-status-position) 2 nil (("Line" line-number-mode)
+						  ("Column" column-number-mode)))
     (:vc (ergoemacs-status-use-vc powerline-vc) 1 l "Version Control")
     (:minor (ergoemacs-status--minor-modes)  4 r "Minor Mode List")
     (:narrow (mode-icons--generate-narrow) 4 r "Narrow Indicator")
@@ -614,7 +615,11 @@ This is a list of element recognized by `ergoemacs-status-mode'."
 		   (const :tag "No Padding" nil))
 	   (choice :tag "Description"
 		   (const :tag "No Description")
-		   (string :tag "Description"))))
+		   (string :tag "Description")
+		   (repeat
+		    (list
+		     (string :tag "Description")
+		     (symbol :tag "Minor mode function"))))))
   :group 'ergoemacs-status)
 
 (defun ergoemacs-status-elements-toggle (elt)
@@ -649,14 +654,22 @@ When DONT-POPUP is non-nil, just return the menu"
        ((consp elt)
 	(dolist (group-elt elt)
 	  (when (setq elt (assoc group-elt ergoemacs-status-elements))
-	    (define-key map (vector (car elt))
-	      `(menu-item ,(nth 4 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
-			  :button (:toggle . (not (memq ,(car elt) ergoemacs-status--suppressed-elements))))))))
+	    (if (stringp (nth 4 elt))
+		(define-key map (vector (car elt))
+		  `(menu-item ,(nth 4 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
+			      :button (:toggle . (not (memq ,(car elt) ergoemacs-status--suppressed-elements)))))
+	      (dolist (new-elt (reverse (nth 4 elt)))
+		(define-key map (vector (nth 1 new-elt))
+		  `(menu-item ,(nth 0 new-elt) ,(nth 1 new-elt) :button (:toggle . ,(nth 1 new-elt)))))))))
        (t
 	(when (setq elt (assoc elt ergoemacs-status-elements))
-	  (define-key map (vector (car elt))
-	    `(menu-item ,(nth 4 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
-			:button (:toggle . (not (memq ,(car elt) ergoemacs-status--suppressed-elements))))))))
+	  (if (stringp (nth 4 elt))
+	      (define-key map (vector (car elt))
+		`(menu-item ,(nth 4 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
+			    :button (:toggle . (not (memq ,(car elt) ergoemacs-status--suppressed-elements)))))
+	    (dolist (new-elt (reverse (nth 4 elt)))
+	      (define-key map (vector (nth 1 new-elt))
+		  `(menu-item ,(nth 0 new-elt) ,(nth 1 new-elt) :button (:toggle . ,(nth 1 new-elt)))))))))
       (setq i (1+ i)))
     (popup-menu map)))
 
