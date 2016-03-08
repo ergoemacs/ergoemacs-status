@@ -287,6 +287,28 @@ EVENT tells what window to set the codings system."
 			   (mode-line keymap
 				      (mouse-1 . ergoemacs-status--set-buffer-file-coding-system)))))
 
+(defvar ergoemacs-status-sep-swap
+  '(alternate arrow arrow-fade bar box brace butt chamfer contour curve rounded roundstub wave zigzag utf-8)
+  "List of separators to swap.")
+(defvar powerline-default-separator)
+(defun ergoemacs-status-sep-swap ()
+  "Swap separators used in powerline."
+  (interactive)
+  (let ((sep (memq powerline-default-separator ergoemacs-status-sep-swap)))
+    (when sep
+      (setq sep (cdr sep))
+      (if (= (length sep) 0)
+	  (setq powerline-default-separator (car ergoemacs-status-sep-swap))
+	(setq powerline-default-separator (car sep))))
+    (force-mode-line-update )))
+
+(defvar ergoemacs-status--sep-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mode-line mouse-3] #'ergoemacs-status-right-click)
+    (define-key map [mode-line down-mouse-1] #'ergoemacs-status-sep-swap)
+    map)
+  "Keymap for separators.")
+
 (defvar powerline-default-separator-dir)
 (defun ergoemacs-status--sep (dir &rest args)
   "Separator with DIR.
@@ -590,7 +612,8 @@ This function also saves your prefrences to
     (:buffer-id (ergoemacs-status-buffer-id) nil nil "Buffer Name")
     (:modified (ergoemacs-status--modified) nil nil "Modified Indicator")
     (:size (ergoemacs-status-size-indication-mode) 2 nil (("Buffer Size" size-indication-mode)))
-    (:position (ergoemacs-status-position) 2 nil (("Line" line-number-mode)
+    (:position (ergoemacs-status-position) 2 nil (("Nyan Mode" nyan-mode)
+						  ("Line" line-number-mode)
 						  ("Column" column-number-mode)))
     (:vc (ergoemacs-status-use-vc powerline-vc) 1 l "Version Control")
     (:minor (ergoemacs-status--minor-modes)  4 r "Minor Mode List")
@@ -682,9 +705,10 @@ When DONT-POPUP is non-nil, just return the menu"
 		  `(menu-item ,(nth 4 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
 			      :button (:toggle . (not (memq ,(car elt) ergoemacs-status--suppressed-elements)))))
 	      (dolist (new-elt (reverse (nth 4 elt)))
-		(pushnew (nth 1 new-elt) ergoemacs-status-elements-popup)
-		(define-key map (vector (nth 1 new-elt))
-		  `(menu-item ,(nth 0 new-elt) (lambda (&rest _) (interactive) (call-interactively ',(nth 1 new-elt)) (ergoemacs-status-elements-popup-save)) :button (:toggle . ,(nth 1 new-elt)))))))))
+		(when (fboundp (nth 1 new-elt))
+		  (pushnew (nth 1 new-elt) ergoemacs-status-elements-popup)
+		  (define-key map (vector (nth 1 new-elt))
+		  `(menu-item ,(nth 0 new-elt) (lambda (&rest _) (interactive) (call-interactively ',(nth 1 new-elt)) (ergoemacs-status-elements-popup-save)) :button (:toggle . ,(nth 1 new-elt))))))))))
        (t
 	(when (setq elt (assoc elt ergoemacs-status-elements))
 	  (if (stringp (nth 4 elt))
@@ -692,9 +716,10 @@ When DONT-POPUP is non-nil, just return the menu"
 		`(menu-item ,(nth 4 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
 			    :button (:toggle . (not (memq ,(car elt) ergoemacs-status--suppressed-elements)))))
 	    (dolist (new-elt (reverse (nth 4 elt)))
-	      (pushnew (nth 1 new-elt) ergoemacs-status-elements-popup)
-	      (define-key map (vector (nth 1 new-elt))
-		  `(menu-item ,(nth 0 new-elt) (lambda (&rest _) (interactive) (call-interactively ',(nth 1 new-elt)) (ergoemacs-status-elements-popup-save)) :button (:toggle . ,(nth 1 new-elt)))))))))
+	      (when (fboundp (nth 1 new-elt))
+		(pushnew (nth 1 new-elt) ergoemacs-status-elements-popup)
+		(define-key map (vector (nth 1 new-elt))
+		  `(menu-item ,(nth 0 new-elt) (lambda (&rest _) (interactive) (call-interactively ',(nth 1 new-elt)) (ergoemacs-status-elements-popup-save)) :button (:toggle . ,(nth 1 new-elt))))))))))
       (setq i (1+ i)))
     (popup-menu map)))
 
@@ -1034,7 +1059,8 @@ element with `ergoemacs-status-down-element' element."
 	(when (and (not finished))
 	  (setq hover (ergoemacs-status-hover (car (cdr position))))
 	  (when hover
-	    (ergoemacs-status-swap-hover hover)))))
+	    (ergoemacs-status-swap-hover hover)))
+	(clear-this-command-keys t)))
     (setq ergoemacs-status-down-element nil)
     (ergoemacs-status-save-file)
     (force-mode-line-update)))
