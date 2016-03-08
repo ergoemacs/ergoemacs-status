@@ -1,7 +1,24 @@
 #+TITLE: ergoemacs-status
 
 * Summary
-A mode like that changes what information is displayed based on window size.
+Ergoemacs-status changes the mode-line (typically in called the status bar) as follows:
+- The mode-line is decorated with icons depicting
+  - Current language or major-mode
+  - The open file's editing status: Read Only, Modified, Modified
+    Externally, or Being modified by someone.
+  - Encoding information
+- The mode-line can be edited with your mouse:
+  - You can drag around displayed elements
+  - Certain elements of the mode-line can be dropped
+- Line endings and encoding systems are shown in more standard formats.
+  - Line ending are shown as CR, CRLF and LF, and the operating system
+    where this is common.
+  - The encoding system of the file is listed in a larger format.
+    For example, instead of =U=, the updated mode-line shows =utf-8=
+- The amount of information shown depends on your window size. Smaller
+  windows either abbreviates the information or stop showing the
+  information.  This lets the essential window information to be
+  preserved with smaller windows.
 
 With a small window, only a small amount of information is displayed:
 
