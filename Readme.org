@@ -1,29 +1,73 @@
 #+TITLE: ergoemacs-status
+This is a modernized mode-line (outside emacs this is called a status
+bar). This status bar changes its contents based on window size:
 
-* Summary
-Ergoemacs-status changes the mode-line (typically in called the status bar) as follows:
-- The mode-line is decorated with icons depicting
-  - Current language or major-mode
-  - The open file's editing status: Read Only, Modified, Modified
-    Externally, or Being modified by someone.
-  - Encoding information
-- The mode-line can be edited with your mouse:
-  - You can drag around displayed elements
-  - Certain elements of the mode-line can be dropped
-- Line endings and encoding systems are shown in more standard formats.
-  - Line ending are shown as CR, CRLF and LF, and the operating system
-    where this is common.
-  - The encoding system of the file is listed in a larger format.
-    For example, instead of =U=, the updated mode-line shows =utf-8=
-- The amount of information shown depends on your window size. Smaller
-  windows either abbreviates the information or stop showing the
-  information.  This lets the essential window information to be
-  preserved with smaller windows.
-
-With a small window, only a small amount of information is displayed:
-
+#+ATTR_HTML: title="screenshot "
 [[./img/small-status.png]]
 
 With a large window, a large amount of information is displayed:
 
+#+ATTR_HTML: title="screenshot"
 [[./img/large-status.png]]
+
+* Getting It
+** Requirements
+   | package    | version  |
+   |------------+----------|
+   | emacs      | >= 23    |
+   | [[https://github.com/milkypostman/powerline][powerline]]  | >= 2.3   |
+   | [[https://github.com/ryuslash/mode-icons][mode-icons]] | >= 0.10  |
+
+
+** Starting status-bar
+To use  library in your load path and use
+
+#+BEGIN_SRC emacs-lisp
+ (require 'ergoemacs-status)
+ (ergoemacs-status-mode)    
+#+END_SRC
+* Features
+The main features include:
+- Iconic display of text properties
+- Easy to Hide or highlight minor modes
+- Very easy to configure
+
+* Customizing status-bar
+** Changing what components are displayed
+You can change what components are displayed by right-clicking on a
+blank area in the status bar. This brings up a list of information that is displayed on the status-bar:
+
+[[./img/status-popup.png]]
+
+You can select or deselect what is shown in the menu-bar.
+
+This configuration is saved for the next emacs session.
+
+** Changing the order of the status bar components
+You can change the display order of any component by Alt+clicking and
+then dragging the element around.
+
+The element you select will be displayed and changed as you move your mouse.
+
+For example Alt+clicking on the linux icon, highlights the encoding
+section of the mode-line or status bar:
+
+[[./img/status-select.png]]
+
+By dragging, you can then move the element:
+
+[[./img/status-select-move.png]]
+
+This configuration is saved for the next emacs session.
+
+** Hiding/displaying minor-modes
+
+By default, the ergoemacs-status hides minor modes based on the size
+of your window.  However, you can permanently hide by clicking on the
+mode.  A "Hide" menu item will be displayed if hidden it can be
+displayed (or even shown) by the up arrow on the side of the
+minor-mode list.
+
+This configuration in saved for the next emacs session.
+
+* Hacking status-bar
