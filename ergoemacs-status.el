@@ -979,11 +979,8 @@ element with `ergoemacs-status-down-element' element."
 	  nil)
 	 ((not (memq (car event) '(mouse-movement scroll-bar-movement)))
 	  (when (consp event)
-	    ;; Do not unread a drag-mouse-1 event to avoid selecting
-	    ;; some other window.  For vertical line dragging do not
-	    ;; unread mouse-1 events either (but only if we dragged at
-	    ;; least once to allow mouse-1 clicks get through).
-	    (unless (eq (car event) 'drag-mouse-1)
+	    ;; Do not unread ANY mouse events.
+	    (unless (eq (event-basic-type (car event)) 'mouse-1)
 	      (push event unread-command-events)))
 	  (setq finished t))
 	 ((not (and (eq (car position) frame)
