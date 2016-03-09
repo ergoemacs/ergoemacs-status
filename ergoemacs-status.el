@@ -279,7 +279,7 @@ EVENT tells what window to set the codings system."
 				      (mouse-1 . ergoemacs-status--set-buffer-file-coding-system)))))
 
 (defvar ergoemacs-status-sep-swap
-  '(alternate arrow arrow-fade bar box brace butt chamfer contour curve rounded roundstub wave zigzag utf-8)
+  '(alternate arrow arrow-fade bar box brace butt chamfer contour curve rounded roundstub wave zigzag)
   "List of separators to swap.")
 (defvar powerline-default-separator)
 (defun ergoemacs-status-sep-swap ()
@@ -323,7 +323,10 @@ The additional ARGS are the fonts applied.  This uses `powerline' functions."
       (let ((img (apply separator args)))
 	(when (and (listp img) (eq 'image (car img)))
 	  (propertize " " 'display img
-		      'face (plist-get (cdr img) :face)))))))
+		      'face (plist-get (cdr img) :face)
+		      'mouse-face 'mode-line-highlight
+		      'local-map ergoemacs-status--sep-map
+		      'help-echo "Separator\nmouse-1: Swap separator\nmouse-3: mode-line properties."))))))
 
 (defvar ergoemacs-status--lhs nil)
 (defvar ergoemacs-status--center nil)
@@ -420,7 +423,8 @@ When DONT-POPUP is non-nil, return the menu without actually popping up the menu
     ergoemacs-status--suppressed-minor-modes
     ergoemacs-status-current
     ergoemacs-status--suppressed-elements
-    ergoemacs-status-elements-popup-save)
+    ergoemacs-status-elements-popup-save
+    powerline-default-separator)
   "List of symbols to save in `ergoemacs-status-file'.")
 
 (defun ergoemacs-status-save-file ()
@@ -679,9 +683,20 @@ This is a list of element recognized by `ergoemacs-status-mode'."
 (defun ergoemacs-status-elements-popup (&optional dont-popup)
   "Popup menu about displayed `ergoemacs-status' elements.
 When DONT-POPUP is non-nil, just return the menu"
-  (let ((map (make-sparse-keymap "Display Status Bar"))
+  (let ((map (make-sparse-keymap "Status Bar"))
 	(i 0)
 	tmp)
+    (define-key map [arrow-type] `(menu-item "Separators"
+					     ,(let ((map (make-sparse-keymap "Separator")))
+						(dolist (elt (reverse ergoemacs-status-sep-swap))
+						  (define-key map (vector elt) `(menu-item ,(format "%s" elt)
+											   (lambda(&rest _) (interactive)
+											     (setq powerline-default-separator ',elt)
+											     (force-mode-line-update)
+											     (ergoemacs-status-save-file))
+											   :button (:toggle . (eq powerline-default-separator ',elt)))))
+						map)))
+    (define-key map [sep-toggle] '(menu-item "---")) 
     (dolist (elt (reverse (append (plist-get ergoemacs-status-current :left)
 				  (list "--")
 				  (plist-get ergoemacs-status-current :center)
@@ -822,7 +837,7 @@ When DONT-POPUP is non-nil, just return the menu"
   "Center theme."
   (setq ergoemacs-status-current
 	'(:left (:major :which :vc :size :nyan :position)
-		 :center (:read-only :buffer-id :modified)
+		 :center ((:read-only :buffer-id :modified))
 		 :right (:global :process :coding :eol (:minor :narrow))))
   (ergoemacs-status-current-update)
   (force-mode-line-update))
@@ -1020,7 +1035,18 @@ with C- M- or S- dragging of elements."
     map))
 
 (defun ergoemacs-status--pad (str &optional type)
-  "Pads STR retaining properties at end or beginning of string."
+  "Pads STR retaining properties at end or beginning of string.
+
+When TYPE is:
+
+- missing or :right, it pads the right with a space.
+- :left, it pads the left with a space.
+- :both, it pads the left and right with spaces.
+
+This padding is sticky -- it inherits the properties of the
+string on the left or the right.  Additionally the final text
+properties of front-sticky is set to nil and read-nonsticy is set
+to t. This removes the stickiness properties of the string."
   (let* ((modified (buffer-modified-p)) (buffer-undo-list t)
 	 (inhibit-read-only t) (inhibit-point-motion-hooks t)
 	 before-change-functions after-change-functions
@@ -1030,14 +1056,16 @@ with C- M- or S- dragging of elements."
 	 (type (or type :right))
 	 (str (propertize str 'front-sticky t)))
     (unwind-protect
-	(with-temp-buffer
-	  (insert str)
-	  (when (memq type '(:right :both))
-	    (insert-and-inherit " "))
-	  (when (memq type '(:left :both))
-	    (goto-char (point-min))
-	    (insert-and-inherit " "))
-	  (buffer-string))
+	(propertize (with-temp-buffer
+		      (insert str)
+		      (when (memq type '(:right :both))
+			(insert-and-inherit " "))
+		      (when (memq type '(:left :both))
+			(goto-char (point-min))
+			(insert-and-inherit " "))
+		      (buffer-string))
+		    'front-sticky nil
+		    'rear-nonsticky t)
       (and (not modified)
 	   (buffer-modified-p)
 	   (set-buffer-modified-p nil)))))
@@ -1111,9 +1139,9 @@ with C- M- or S- dragging of elements."
 	       ret))
     (cond
      ((eq dir 'center)
-      (setq tmp (ergoemacs-status--pad (pop ret) :right)
+      (setq tmp (ergoemacs-status--pad (pop ret) :left)
 	    ret (append (list (ergoemacs-status--sep 'left face2 face1))
-			(list t                        mp)
+			(list tmp)
 			ret
 			(list (ergoemacs-status--sep 'right face1 face2)))))
      ((eq last-face face2))
