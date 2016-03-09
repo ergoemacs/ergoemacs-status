@@ -30,6 +30,8 @@
 ;;; Code:
 (require 'powerline nil t)
 (require 'mode-icons nil t)
+(eval-when-compile
+  (require 'cl))
 
 (declare-function ergoemacs-next-emacs-buffer "ergoemacs-lib")
 (declare-function ergoemacs-next-user-buffer "ergoemacs-lib")
