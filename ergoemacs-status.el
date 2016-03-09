@@ -192,11 +192,6 @@ buffer is selected with mode-line click."
        (t
 	(previous-buffer))))))
 
-(defcustom ergoemacs-status-minor-modes t
-  "Include minor-modes in `mode-line-format'."
-  :type 'boolean
-  :group 'ergoemacs-status)
-
 (defcustom ergoemacs-status-use-vc t
   "Include vc in mode-line."
   :type 'boolean
@@ -259,16 +254,12 @@ buffer is selected with mode-line click."
     lst-or-string)
    (t "")))
 
-(defun ergoemacs-status--if (str &optional face pad)
-  "Render STR as mode-line data using FACE and optionally PAD import on left (l), right (r) or both (b)."
-  (let* ((rendered-str (format-mode-line (ergoemacs-status--if--1 str)))
-	 (padded-str (concat
-		      (when (and (> (length rendered-str) 0) (memq pad '(l left b both))) " ")
-		      rendered-str
-		      (when (and (> (length rendered-str) 0) (memq pad '(r right b both))) " "))))
+(defun ergoemacs-status--if (str &optional face)
+  "Render STR as mode-line data using FACE."
+  (let* ((rendered-str (format-mode-line (ergoemacs-status--if--1 str))))
     (if face
-	(ergoemacs-status--add-text-property padded-str 'face face)
-      padded-str)))
+	(ergoemacs-status--add-text-property rendered-str 'face face)
+      rendered-str)))
 
 (defun ergoemacs-status--set-buffer-file-coding-system (event)
   "Set buffer file-coding.
@@ -320,8 +311,10 @@ The additional ARGS are the fonts applied.  This uses `powerline' functions."
 						 (car powerline-default-separator-dir))
 					    (cdr powerline-default-separator-dir))))))
 	(args (mapcar
-	       (lambda(f)
-		 (let ((fa (assoc f face-remapping-alist)))
+	       (lambda(face)
+		 (let* ((f (or (and (symbolp face) face)
+			       (and (consp face) (symbolp (car face)) (car face))))
+			(fa (assoc f face-remapping-alist)))
 		   (if fa
 		       (car (cdr fa))
 		     f)))
@@ -612,20 +605,20 @@ This function also saves your prefrences to
     (format-mode-line '(:eval (list (nyan-create))))))
 
 (defcustom ergoemacs-status-elements
-  '((:read-only (ergoemacs-status--read-only) 3 nil "Read Only Indicator")
-    (:buffer-id (ergoemacs-status-buffer-id) nil nil "Buffer Name")
-    (:modified (ergoemacs-status--modified) nil nil "Modified Indicator")
-    (:size (ergoemacs-status-size-indication-mode) 2 nil (("Buffer Size" size-indication-mode)))
-    (:nyan (ergoemacs-status--nyan) 1 nil (("Nyan mode" nyan-mode)))
-    (:position (ergoemacs-status-position) 2 nil ( ("Line" line-number-mode)
+  '((:read-only (ergoemacs-status--read-only) 3 "Read Only Indicator")
+    (:buffer-id (ergoemacs-status-buffer-id) nil "Buffer Name")
+    (:modified (ergoemacs-status--modified) nil "Modified Indicator")
+    (:size (ergoemacs-status-size-indication-mode) 2 (("Buffer Size" size-indication-mode)))
+    (:nyan (ergoemacs-status--nyan) 1 (("Nyan mode" nyan-mode)))
+    (:position (ergoemacs-status-position) 2 ( ("Line" line-number-mode)
 						  ("Column" column-number-mode)))
-    (:vc (ergoemacs-status-use-vc powerline-vc) 1 l "Version Control")
-    (:minor (ergoemacs-status--minor-modes)  4 r "Minor Mode List")
-    (:narrow (mode-icons--generate-narrow) 4 r "Narrow Indicator")
+    (:vc (ergoemacs-status-use-vc powerline-vc) 1 "Version Control")
+    (:minor (ergoemacs-status--minor-modes)  4 "Minor Mode List")
+    (:narrow (mode-icons--generate-narrow) 4 "Narrow Indicator")
     (:global (global-mode-string) nil nil (("Time" display-time-mode)
 					   ("Battery Charge" display-battery-mode)))
-    (:coding ((lambda() (not (string= "undecided" (ergoemacs-status--encoding)))) ergoemacs-status--encoding) 2 nil "Coding System")
-    (:eol ((lambda() (not (string= ":" (mode-line-eol-desc)))) mode-icons--mode-line-eol-desc mode-line-eol-desc) 2 nil "End Of Line Convention")
+    (:coding ((lambda() (not (string= "undecided" (ergoemacs-status--encoding)))) ergoemacs-status--encoding) 2 "Coding System")
+    (:eol ((lambda() (not (string= ":" (mode-line-eol-desc)))) mode-icons--mode-line-eol-desc mode-line-eol-desc) 2 "End Of Line Convention")
     (:major (ergoemacs-status-major-mode-item) nil nil "Language/Major mode")
     (:which-func (ergoemacs-status-which-function-mode) nil nil "Which function")
     (:process (mode-line-process) 1 nil "Process"))
@@ -639,11 +632,6 @@ This is a list of element recognized by `ergoemacs-status-mode'."
 	   (choice :tag "How this element is collapsed"
 	     (const :tag "Always keep this element" nil)
 	     (integer :tag "Reduction Level"))
-	   (choice :tag "Default padding of this element"
-		   (const :tag "Left Padding" l)
-		   (const :tag "Right Padding" r)
-		   (const :tag "Left and Right Padding" b)
-		   (const :tag "No Padding" nil))
 	   (choice :tag "Description"
 		   (const :tag "No Description")
 		   (string :tag "Description")
@@ -705,22 +693,22 @@ When DONT-POPUP is non-nil, just return the menu"
        ((consp elt)
 	(dolist (group-elt elt)
 	  (when (setq elt (assoc group-elt ergoemacs-status-elements))
-	    (if (stringp (nth 4 elt))
+	    (if (stringp (nth 3 elt))
 		(define-key map (vector (car elt))
-		  `(menu-item ,(nth 4 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
+		  `(menu-item ,(nth 3 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
 			      :button (:toggle . (not (memq ,(car elt) ergoemacs-status--suppressed-elements)))))
-	      (dolist (new-elt (reverse (nth 4 elt)))
+	      (dolist (new-elt (reverse (nth 3 elt)))
 		(when (fboundp (nth 1 new-elt))
 		  (pushnew (nth 1 new-elt) ergoemacs-status-elements-popup)
 		  (define-key map (vector (nth 1 new-elt))
 		  `(menu-item ,(nth 0 new-elt) (lambda (&rest _) (interactive) (call-interactively ',(nth 1 new-elt)) (ergoemacs-status-elements-popup-save)) :button (:toggle . ,(nth 1 new-elt))))))))))
        (t
 	(when (setq elt (assoc elt ergoemacs-status-elements))
-	  (if (stringp (nth 4 elt))
+	  (if (stringp (nth 3 elt))
 	      (define-key map (vector (car elt))
-		`(menu-item ,(nth 4 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
+		`(menu-item ,(nth 3 elt) (lambda(&rest _) (interactive) (ergoemacs-status-elements-toggle ,(car elt)))
 			    :button (:toggle . (not (memq ,(car elt) ergoemacs-status--suppressed-elements)))))
-	    (dolist (new-elt (reverse (nth 4 elt)))
+	    (dolist (new-elt (reverse (nth 3 elt)))
 	      (when (fboundp (nth 1 new-elt))
 		(pushnew (nth 1 new-elt) ergoemacs-status-elements-popup)
 		(define-key map (vector (nth 1 new-elt))
@@ -730,15 +718,6 @@ When DONT-POPUP is non-nil, just return the menu"
 
 (defvar ergoemacs-status-current nil
   "Current layout of mode-line.")
-
-(defun ergoemacs-status--atom ()
-  "Atom style layout."
-  (setq ergoemacs-status-current
-	'(:left ((:read-only :buffer-id :modified) :size :nyan :position :vc)
-		:center ((:minor :narrow))
-		:right (:global :coding :eol :major)))
-  (ergoemacs-status-current-update)
-  (force-mode-line-update))
 
 (defvar ergoemacs-status-buffer-id-map
   (let ((map (make-sparse-keymap)))
@@ -789,7 +768,6 @@ When DONT-POPUP is non-nil, just return the menu"
 	    ergoemacs-status--rhs (ergoemacs-status-current-update (plist-get ergoemacs-status-current :right) :right))
     (let (ret
 	  stat-elt
-	  pad
 	  reduce
 	  ifc
 	  lst tmp1 tmp2 tmp3
@@ -803,37 +781,8 @@ When DONT-POPUP is non-nil, just return the menu"
 					(assoc combine-elt ergoemacs-status-elements)))
 		(setq ifc (nth 1 stat-elt)
 		      reduce (nth 2 stat-elt)
-		      pad (nth 3 stat-elt)
 		      last-p (eq (car theme-list) combine-elt) 
-		      pad (cond
-			   ((and (and (not first-p) (not last-p))
-				 (not pad)) 'r)
-			   ((and (and (not first-p) (not last-p))
-				 (eq pad 'r)) nil)
-			   ((and (and (not first-p) (not last-p))
-				 (eq pad 'l))
-			    ;; Modify last interaction, if possible
-			    (setq tmp1 (pop ret)
-				  tmp2 (pop tmp1)
-				  tmp3 (plist-get tmp1 :pad))
-			    (prog1 'r
-			      ;; drop right padding (if possible)
-			      (cond
-			       ((eq tmp3 'b)
-				(setq tmp1 (plist-put tmp1 :pad 'l)))
-			       ((eq tmp3 'r)
-				(setq tmp1 (plist-put tmp1 :pad nil)))))
-			    (push tmp2 tmp1)
-			    (push tmp1 ret))
-			   ;; Otherwise
-			   ((not pad) 'b)
-			   ((eq pad 'l) 'r)
-			   ((eq pad 'r) 'l)
-			   ((eq pad 'b)) nil)
 		      lst nil)
-		(when pad
-		  (push pad lst)
-		  (push :pad lst))
 		(when reduce
 		  (push reduce lst)
 		  (push :reduce lst))
@@ -850,39 +799,7 @@ When DONT-POPUP is non-nil, just return the menu"
 				    (assoc elt ergoemacs-status-elements)))
 	    (setq ifc (nth 1 stat-elt)
 		  reduce (nth 2 stat-elt)
-		  pad (nth 3 stat-elt)
-		  pad (cond
-		       ((and (eq :center direction)
-			     (and ret (not (eq (car theme-list) elt)))
-			     (not pad)) 'r)
-		       ((and (eq :center direction)
-			     (and ret (not (eq (car theme-list) elt)))
-			     (eq pad 'r)) nil)
-		       ((and (eq :center direction)
-			     (and ret (not (eq (car theme-list) elt)))
-			     (eq pad 'l))
-			;; Modify last interaction, if possible
-			(setq tmp1 (pop ret)
-			      tmp2 (pop tmp1)
-			      tmp3 (plist-get tmp1 :pad))
-			(prog1 'r
-			  ;; drop right padding (if possible)
-			  (cond
-			   ((eq tmp3 'b)
-			    (setq tmp1 (plist-put tmp1 :pad 'l)))
-			   ((eq tmp3 'r)
-			    (setq tmp1 (plist-put tmp1 :pad nil)))))
-			(push tmp2 tmp1)
-			(push tmp1 ret)) 
-		       ;; :center and (not ret)
-		       ((not pad) 'b)
-		       ((eq pad 'l) 'r)
-		       ((eq pad 'r) 'l)
-		       ((eq pad 'b)) nil)
 		  lst nil)
-	    (when pad
-	      (push pad lst)
-	      (push :pad lst))
 	    (when reduce
 	      (push reduce lst)
 	      (push :reduce lst))
@@ -891,6 +808,16 @@ When DONT-POPUP is non-nil, just return the menu"
 	    (push ifc lst)
 	    (push lst ret))))
       ret)))
+
+(defun ergoemacs-status--atom ()
+  "Atom style layout."
+  (setq ergoemacs-status-current
+	'(:left ((:read-only :buffer-id :modified) :size :nyan :position :vc)
+		:center ((:minor :narrow))
+		:right (:global :process :coding :eol :major)))
+  (ergoemacs-status-current-update)
+  (force-mode-line-update))
+
 (defun ergoemacs-status--center ()
   "Center theme."
   (setq ergoemacs-status-current
@@ -910,13 +837,14 @@ When DONT-POPUP is non-nil, just return the menu"
 (ergoemacs-status--center)
 
 (defun ergoemacs-status--eval-center (mode-line face1 _face2 &optional reduce)
-  (ergoemacs-status--stack ergoemacs-status--center mode-line face1 'center reduce))
+  (or (and ergoemacs-status--center (ergoemacs-status--stack ergoemacs-status--center mode-line face1 'center reduce))
+      ""))
 
 (defun ergoemacs-status--eval-lhs (mode-line face1 _face2 &optional reduce)
   (ergoemacs-status--stack ergoemacs-status--lhs mode-line face1 'left reduce))
 
 (defun ergoemacs-status--eval-rhs (mode-line face1 _face2 &optional reduce)
-  (ergoemacs-status--stack ergoemacs-status--rhs mode-line face1 'right reduce))
+  (or (and ergoemacs-status--rhs (ergoemacs-status--stack ergoemacs-status--rhs mode-line face1 'right reduce)) ""))
 
 
 (defvar ergoemacs-status-down-element nil)
@@ -1094,6 +1022,29 @@ with C- M- or S- dragging of elements."
     ;;   (define-key map [mode-line drag-mouse-1] #'ergoemacs-status-drag))
     map))
 
+(defun ergoemacs-status--pad (str &optional type)
+  "Pads STR retaining properties at end or beginning of string."
+  (let* ((modified (buffer-modified-p)) (buffer-undo-list t)
+	 (inhibit-read-only t) (inhibit-point-motion-hooks t)
+	 before-change-functions after-change-functions
+	 deactivate-mark
+					; Prevent primitives checking  for file modification
+	 buffer-file-name buffer-file-truename
+	 (type (or type :right))
+	 (str (propertize str 'front-sticky t)))
+    (unwind-protect
+	(with-temp-buffer
+	  (insert str)
+	  (when (memq type '(:right :both))
+	    (insert-and-inherit " "))
+	  (when (memq type '(:left :both))
+	    (goto-char (point-min))
+	    (insert-and-inherit " "))
+	  (buffer-string))
+      (and (not modified)
+	   (buffer-modified-p)
+	   (set-buffer-modified-p nil)))))
+
 (defun ergoemacs-status--stack (mode-line-list face1 face2 dir &optional reduction-level)
   "Stacks mode-line elements."
   (let* (ret
@@ -1104,6 +1055,7 @@ with C- M- or S- dragging of elements."
 	 (lst (if (eq dir 'right)
 		  mode-line-list
 		(reverse mode-line-list)))
+	 add-space-p
 	 last-face cur-face tmp)
     (dolist (elt lst)
       (setq ifs (car elt)
@@ -1116,12 +1068,11 @@ with C- M- or S- dragging of elements."
 	(setq tmp (ergoemacs-status--if ifs (if (and ergoemacs-status-down-element
 						     (equal (plist-get plist :element) ergoemacs-status-down-element))
 						'ergoemacs-status-selected-element 
-					      (nth (mod i len) face-list))
-					(plist-get plist :pad)))
+					      (nth (mod i len) face-list))))
 	(unless (and tmp (stringp tmp) (string= (format-mode-line tmp) ""))
 	  (unless (or (plist-get plist :last-p) (eq dir 'center))
 	    (setq i (1+ i)))
-	  (setq tmp (propertize tmp :element (plist-get plist :element)))
+	  (setq tmp (propertize (replace-regexp-in-string "\\( +$\\|^ +\\)" "" tmp) :element (plist-get plist :element)))
 	  (push tmp ret))))
     (when (eq (get-text-property 0 'face (format-mode-line (nth 0 ret)))
 		(nth 1 face-list))
@@ -1150,20 +1101,24 @@ with C- M- or S- dragging of elements."
 		 (setq cur-face (get-text-property 0 'face elt))
 		 (prog1
 		     (cond
-		      ((eq cur-face last-face) elt)
+		      ((equal cur-face last-face)
+		       (ergoemacs-status--pad elt))
 		      ((eq dir 'left)
-		       (concat (ergoemacs-status--sep dir last-face cur-face) elt))
+		       (concat (ergoemacs-status--sep dir last-face cur-face)
+			       (ergoemacs-status--pad elt :both)))
 		      ((eq dir 'right)
-		       (concat elt (ergoemacs-status--sep dir cur-face last-face)))
+		       (concat (ergoemacs-status--pad elt :both) (ergoemacs-status--sep dir cur-face last-face)))
 		      ((eq dir 'center)
-		       elt))
+		       (ergoemacs-status--pad elt :both)))
 		   (setq last-face cur-face)))
 	       ret))
     (cond
      ((eq dir 'center)
-      (setq ret (append (list (ergoemacs-status--sep 'left face2 face1))
-  			  ret
-  			  (list (ergoemacs-status--sep 'right face1 face2)))))
+      (setq tmp (ergoemacs-status--pad (pop ret) :right)
+	    ret (append (list (ergoemacs-status--sep 'left face2 face1))
+			(list t                        mp)
+			ret
+			(list (ergoemacs-status--sep 'right face1 face2)))))
      ((eq last-face face2))
      ((eq dir 'left)
       (setq ret (append ret (list (ergoemacs-status--sep dir last-face face2)))))
