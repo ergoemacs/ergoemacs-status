@@ -684,8 +684,7 @@ This is a list of element recognized by `ergoemacs-status-mode'."
   "Popup menu about displayed `ergoemacs-status' elements.
 When DONT-POPUP is non-nil, just return the menu"
   (let ((map (make-sparse-keymap "Status Bar"))
-	(i 0)
-	tmp)
+	(i 0))
     (define-key map [arrow-type] `(menu-item "Separators"
 					     ,(let ((map (make-sparse-keymap "Separator")))
 						(dolist (elt (reverse ergoemacs-status-sep-swap))
@@ -729,7 +728,8 @@ When DONT-POPUP is non-nil, just return the menu"
 		(define-key map (vector (nth 1 new-elt))
 		  `(menu-item ,(nth 0 new-elt) (lambda (&rest _) (interactive) (call-interactively ',(nth 1 new-elt)) (ergoemacs-status-elements-popup-save)) :button (:toggle . ,(nth 1 new-elt))))))))))
       (setq i (1+ i)))
-    (popup-menu map)))
+    (if dont-popup map
+      (popup-menu map))))
 
 (defvar ergoemacs-status-current nil
   "Current layout of mode-line.")
@@ -785,7 +785,7 @@ When DONT-POPUP is non-nil, just return the menu"
 	  stat-elt
 	  reduce
 	  ifc
-	  lst tmp1 tmp2 tmp3
+	  lst
 	  first-p
 	  last-p)
       (dolist (elt (reverse theme-list))
@@ -1013,9 +1013,7 @@ element with `ergoemacs-status-down-element' element."
 (defun ergoemacs-status--modify-map (map)
   "Modify MAP to include context menu. Also allows arrangment
 with C- M- or S- dragging of elements."
-  (let ((map map)
-	down-mouse-1
-	mouse-1 tmp)
+  (let ((map map) tmp)
     (if (not map)
 	(setq map (make-sparse-keymap))
       (setq map (copy-keymap map)))
@@ -1080,7 +1078,6 @@ to t. This removes the stickiness properties of the string."
 	 (lst (if (eq dir 'right)
 		  mode-line-list
 		(reverse mode-line-list)))
-	 add-space-p
 	 last-face cur-face tmp)
     (dolist (elt lst)
       (setq ifs (car elt)
