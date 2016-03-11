@@ -64,11 +64,8 @@ This configuration is saved for the next emacs session.
 
 By default, the ergoemacs-status hides minor modes based on the size
 of your window.  However, you can permanently hide by clicking on the
-mode.  A "Hide" menu item will be displayed if hidden it can be
-displayed (or even shown) by the up arrow on the side of the
-minor-mode list.
-
-In minor modes without specific menus, the hide button will be in the center:
+mode. In minor modes without specific menus, the hide button will be in
+the center:
 
 [[./img/hide-1.png]]
 
@@ -77,6 +74,13 @@ button will be on the bottom of the menus:
 
 [[./img/hide-2.png]]
 
+If you change your mind and want to show the minor mode, you can click
+on the up-arrow, then the hidden minor mode and, and then "Show this
+minor mode":
+
+[[./img/show.png]]
+
 This configuration in saved for the next emacs session.
+
 
 * Hacking status-bar
