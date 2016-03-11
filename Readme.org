@@ -33,8 +33,8 @@ The main features include:
 - Very easy to configure
 
 * Customizing status-bar
-** Changing what components are displayed
-You can change what components are displayed by right-clicking on a
+** Changing what elements are displayed
+You can change what elements are displayed by right-clicking on a
 blank area in the status bar. This brings up a list of information that is displayed on the status-bar:
 
 [[./img/status-popup.png]]
@@ -43,8 +43,8 @@ You can select or deselect what is shown in the menu-bar.
 
 This configuration is saved for the next emacs session.
 
-** Changing the order of the status bar components
-You can change the display order of any component by Alt+clicking and
+** Changing the order of the status bar elements
+You can change the display order of any element by Alt+clicking and
 then dragging the element around.
 
 The element you select will be displayed and changed as you move your mouse.
@@ -67,6 +67,15 @@ of your window.  However, you can permanently hide by clicking on the
 mode.  A "Hide" menu item will be displayed if hidden it can be
 displayed (or even shown) by the up arrow on the side of the
 minor-mode list.
+
+In minor modes without specific menus, the hide button will be in the center:
+
+[[./img/hide-1.png]]
+
+If the minor mode has it's own menus, like =flycheck-mode=, the hide
+button will be on the bottom of the menus:
+
+[[./img/hide-2.png]]
 
 This configuration in saved for the next emacs session.
 
