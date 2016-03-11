@@ -454,7 +454,8 @@ This function also saves your prefrences to
   (force-mode-line-update))
 
 (defun ergoemacs-minor-mode-hidden-menu (&optional _event)
-  "Display a list of the hidden minor modes."
+  "Display a list of the hidden minor modes.
+Currently this ignores the _EVENT data."
   (interactive "@e")
   (popup-menu
    `(keymap
@@ -466,7 +467,8 @@ This function also saves your prefrences to
 			      ergoemacs-status--space-hidden-minor-modes))
 	   (when (and (boundp elt) (symbol-value elt))
 	     (push elt ret)))
-	 ret)))))
+	 ret))
+     "Hidden Minor Modes")))
 
 (defun ergoemacs-minor-mode-alist ()
   "Get a list of the minor-modes"
