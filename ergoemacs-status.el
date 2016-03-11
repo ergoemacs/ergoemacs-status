@@ -330,12 +330,21 @@ The additional ARGS are the fonts applied.  This uses `powerline' functions."
 		      'local-map ergoemacs-status--sep-map
 		      'help-echo "Separator\nmouse-1: Swap separator\nmouse-3: mode-line properties."))))))
 
+(defvar ergoemacs-status--lhs nil
+  "Internal variable to render left handed side of mode-line.")
+
+(defvar ergoemacs-status--center nil
+  "Internal variable to render center of mode-line.")
+
+(defvar ergoemacs-status--rhs nil
+  "Internal variable to render right handed side of mode-line.")
+
 (defvar ergoemacs-status--lhs nil)
 (defvar ergoemacs-status--center nil)
 (defvar ergoemacs-status--rhs nil)
 
-(defvar ergoemacs-status--space-hidden-minor-modes nil
-  "List of minor modes hidden due to space limitations.")
+(defvar ergoemacs-status--automatic-hidden-minor-modes nil
+  "List of minor modes hidden due to either space or adaptive hiding of minor-modes.")
 
 ;; Adapted from powerline.
 (defvar ergoemacs-status--suppressed-minor-modes '(isearch-mode)
@@ -360,7 +369,7 @@ When DONT-POPUP is non-nil, return the menu without actually popping up the menu
     (unless minor-mode (error "Cannot find minor mode for `%s'" indicator))
     (let* ((map (cdr-safe (assq minor-mode minor-mode-map-alist)))
            (menu (and (keymapp map) (lookup-key map [menu-bar])))
-	   (hidden (memq minor-mode ergoemacs-status--space-hidden-minor-modes)))
+	   (hidden (memq minor-mode ergoemacs-status--automatic-hidden-minor-modes)))
       (setq menu
             (if menu
                 (if hidden
@@ -410,6 +419,23 @@ When DONT-POPUP is non-nil, return the menu without actually popping up the menu
 
 (defvar ergoemacs-status--hidden-minor-modes '()
   "List of tempoarily hidden modes.")
+
+(defcustom ergoemacs-status-hidden-indicators
+  '("FlyC-")
+  "Minor modes that will be hidden based on indicator status."
+  :type '(repeat
+	  (string :tag "Minor mode indicator"))
+  :group 'ergoemacs-status)
+
+(defcustom ergoemacs-status-hidden-regexp "\\(Ergo.*\\[.*\\]\\)"
+  "Regular Expression of adaptive hidden indicators."
+  :type '(choice
+	  (regexp :tag "Regular Expression")
+	  (const :tag "No additional mapping."))
+  :group 'ergoemacs-status)
+
+(defvar ergoemacs-status--regexp-hidden nil
+  "Regular Expression of when minor mode are hidden.")
 
 (defun ergoemacs-status-save-file--sym (sym)
   "Print SYM Emacs Lisp value in current buffer."
@@ -464,7 +490,7 @@ Currently this ignores the _EVENT data."
 	 `(,m menu-item ,(format "%s" m) ,(ergoemacs-minor-mode-menu-from-indicator m t)))
        (let (ret)
 	 (dolist (elt (append ergoemacs-status--hidden-minor-modes
-			      ergoemacs-status--space-hidden-minor-modes))
+			      ergoemacs-status--automatic-hidden-minor-modes))
 	   (when (and (boundp elt) (symbol-value elt))
 	     (push elt ret)))
 	 ret))
@@ -498,8 +524,13 @@ Currently this ignores the _EVENT data."
   "Get minor modes."
   (let* ((width 0)
 	 (ret ""))
+    (unless ergoemacs-status--regexp-hidden
+      (setq ergoemacs-status--regexp-hidden (concat "\\` *" (regexp-opt ergoemacs-status-hidden-indicators 't)
+						    (or (and ergoemacs-status-hidden-regexp "\\|") "")
+						    (or ergoemacs-status-hidden-regexp "")
+						    "\\'")))
     (when ergoemacs-status--minor-modes-p
-      (setq ergoemacs-status--space-hidden-minor-modes nil
+      (setq ergoemacs-status--automatic-hidden-minor-modes nil
 	    ret (replace-regexp-in-string
 		 " +$" ""
 		 (concat
@@ -523,18 +554,22 @@ Currently this ignores the _EVENT data."
 									 [header-line down-mouse-3]
 									 (ergoemacs-status--minor-mode-mouse 'minor 'menu mm))
 								       map))))
-				     (setq width (+ width (ergoemacs-status--eval-width cur) 1))
-				     (if (or (not (numberp ergoemacs-status--minor-modes-available))
-					     (< width ergoemacs-status--minor-modes-available))
-					 cur
-				       (push (lookup-minor-mode-from-indicator mm) ergoemacs-status--space-hidden-minor-modes)
-				       ""))
-				 (push (lookup-minor-mode-from-indicator mm) ergoemacs-status--space-hidden-minor-modes)
+				     ;; (message "`%s';%s" cur (string-match-p ergoemacs-status--regexp-hidden cur))
+				     (if (string-match-p ergoemacs-status--regexp-hidden cur)
+					 (progn
+					   (push (lookup-minor-mode-from-indicator mm) ergoemacs-status--automatic-hidden-minor-modes)
+					   "")
+				       (if (or (not (numberp ergoemacs-status--minor-modes-available))
+					       (< width ergoemacs-status--minor-modes-available))
+					   cur
+					 (push (lookup-minor-mode-from-indicator mm) ergoemacs-status--automatic-hidden-minor-modes)
+					 "")))
+				 (push (lookup-minor-mode-from-indicator mm) ergoemacs-status--automatic-hidden-minor-modes)
 				 ""))
 			     (split-string (format-mode-line (ergoemacs-minor-mode-alist)))
 			     " ")))))
     (when (or (not ergoemacs-status--minor-modes-p)
-	      ergoemacs-status--space-hidden-minor-modes
+	      ergoemacs-status--automatic-hidden-minor-modes
 	      (catch 'found
 		(dolist (elt ergoemacs-status--hidden-minor-modes)
 		  (when (and (boundp elt) (symbol-value elt))
@@ -624,7 +659,8 @@ Currently this ignores the _EVENT data."
     (:minor (ergoemacs-status--minor-modes)  4 "Minor Mode List")
     (:narrow (mode-icons--generate-narrow) 4 "Narrow Indicator")
     (:global (global-mode-string) nil nil (("Time" display-time-mode)
-					   ("Battery Charge" display-battery-mode)))
+					   ("Battery Charge" display-battery-mode)
+					   ("Fancy Battery Charge" fancy-battery-mode)))
     (:coding ((lambda() (not (string= "undecided" (ergoemacs-status--encoding)))) ergoemacs-status--encoding) 2 "Coding System")
     (:eol ((lambda() (not (string= ":" (mode-line-eol-desc)))) mode-icons--mode-line-eol-desc mode-line-eol-desc) 2 "End Of Line Convention")
     (:major (ergoemacs-status-major-mode-item) nil nil "Language/Major mode")
@@ -791,13 +827,17 @@ When DONT-POPUP is non-nil, just return the menu"
 	  ifc
 	  lst
 	  first-p
-	  last-p)
+	  last-p
+	  swap-p tmp)
       (dolist (elt (reverse theme-list))
 	(setq first-p t)
 	(if (consp elt)
 	    (dolist (combine-elt (reverse elt))
-	      (when (setq stat-elt (and (not (memq combine-elt ergoemacs-status--suppressed-elements))
-					(assoc combine-elt ergoemacs-status-elements)))
+	      (cond
+	       ((eq combine-elt :swap-dir)
+		(setq swap-p t))
+	       ((and (setq stat-elt (and (not (memq combine-elt ergoemacs-status--suppressed-elements))
+					 (assoc combine-elt ergoemacs-status-elements))))
 		(setq ifc (nth 1 stat-elt)
 		      reduce (nth 2 stat-elt)
 		      last-p (eq (car theme-list) combine-elt) 
@@ -811,11 +851,19 @@ When DONT-POPUP is non-nil, just return the menu"
 			    (and first-p (eq direction :right)))
 		  (push t lst)
 		  (push :last-p lst))
+		(when swap-p
+		  (push t lst)
+		  (push :swap-dir lst))
+		(setq swap-p nil)
 		(push ifc lst)
 		(push lst ret)
-		(setq first-p nil)))
-	  (when (setq stat-elt (and (not (memq elt ergoemacs-status--suppressed-elements))
-				    (assoc elt ergoemacs-status-elements)))
+		(setq first-p nil))))
+	  
+	  (cond
+	   ((eq elt :swap-dir)
+	    (setq swap-p t))
+	   ((setq stat-elt (and (not (memq elt ergoemacs-status--suppressed-elements))
+				(assoc elt ergoemacs-status-elements)))
 	    (setq ifc (nth 1 stat-elt)
 		  reduce (nth 2 stat-elt)
 		  lst nil)
@@ -824,8 +872,12 @@ When DONT-POPUP is non-nil, just return the menu"
 	      (push :reduce lst))
 	    (push elt lst)
 	    (push :element lst)
+	    (when swap-p
+	      (push t lst)
+	      (push :swap-dir lst))
+	    (setq swap-p nil)
 	    (push ifc lst)
-	    (push lst ret))))
+	    (push lst ret)))))
       ret)))
 
 (defun ergoemacs-status--atom ()
@@ -850,6 +902,14 @@ When DONT-POPUP is non-nil, just return the menu"
   "Xah theme"
   (setq ergoemacs-status-current
 	'(:left ((:read-only :buffer-id :modified) :size :nyan :position :major :global)))
+  (ergoemacs-status-current-update)
+  (force-mode-line-update))
+
+(defun ergoemacs-status--space ()
+  "Spacemacs like theme."
+  (setq ergoemacs-status-current
+	'(:left ((:read-only :size :buffer-id :modified) :major :swap-dir :minor :vc)
+		:right (:position)))
   (ergoemacs-status-current-update)
   (force-mode-line-update))
 
@@ -1082,7 +1142,8 @@ to t. This removes the stickiness properties of the string."
 	 (lst (if (eq dir 'right)
 		  mode-line-list
 		(reverse mode-line-list)))
-	 last-face cur-face tmp)
+	 (cur-dir dir)
+	 last-face cur-face swap-dir tmp)
     (dolist (elt lst)
       (setq ifs (car elt)
 	    plist (cdr elt)
@@ -1098,7 +1159,9 @@ to t. This removes the stickiness properties of the string."
 	(unless (and tmp (stringp tmp) (string= (format-mode-line tmp) ""))
 	  (unless (or (plist-get plist :last-p) (eq dir 'center))
 	    (setq i (1+ i)))
-	  (setq tmp (propertize (replace-regexp-in-string "\\( +$\\|^ +\\)" "" tmp) :element (plist-get plist :element)))
+	  (setq tmp (propertize (replace-regexp-in-string "\\( +$\\|^ +\\)" "" tmp)
+				:element (plist-get plist :element)
+				:swap-dir (plist-get plist :swap-dir)))
 	  (push tmp ret))))
     (when (eq (get-text-property 0 'face (format-mode-line (nth 0 ret)))
 		(nth 1 face-list))
@@ -1130,10 +1193,10 @@ to t. This removes the stickiness properties of the string."
 		      ((equal cur-face last-face)
 		       (ergoemacs-status--pad elt))
 		      ((eq dir 'left)
-		       (concat (ergoemacs-status--sep dir last-face cur-face)
+		       (concat (ergoemacs-status--sep cur-dir last-face cur-face)
 			       (ergoemacs-status--pad elt :both)))
 		      ((eq dir 'right)
-		       (concat (ergoemacs-status--pad elt :both) (ergoemacs-status--sep dir cur-face last-face)))
+		       (concat (ergoemacs-status--pad elt :both) (ergoemacs-status--sep cur-dir cur-face last-face)))
 		      ((eq dir 'center)
 		       (ergoemacs-status--pad elt :both)))
 		   (setq last-face cur-face)))
