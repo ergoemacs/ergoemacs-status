@@ -1,7 +1,7 @@
-;;; ergoemacs-status.el --- Adapatave Status Bar / Mode Line -*- lexical-binding: t -*-
+;;; ergoemacs-status.el --- Adaptive Status Bar / Mode Line -*- lexical-binding: t -*-
 ;; 
 ;; Filename: ergoemacs-status.el
-;; Description: Adaptive Status Bar / Mode Line for Emacs
+;; Description: Adaptive Status Bar / Mode Line
 ;; Author: Matthew Fidler
 ;; Maintainer: Matthew Fidler
 ;; Created: Fri Mar  4 14:13:50 2016 (-0600)
