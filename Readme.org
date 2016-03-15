@@ -82,5 +82,18 @@ minor mode":
 
 This configuration in saved for the next emacs session.
 
+You can also suppress a mode from being in the hidden modes popup or
+in the status-bar / mode-line: This is done by adding the mode symbol
+to the variable =ergoemacs-status--suppressed-minor-modes=.  For
+example, to hide =flyspell-mode=, you can add the following
+
+#+BEGIN_SRC emacs-lisp
+  (push 'flyspell-mode ergoemacs-status--suppressed-minor-modes)
+#+END_SRC
+
+after loading =ergoemacs-status=.  This is saved in your
+initialization settings like =~/.emacs=
+
+By default =isearch-mode= is suppressed in =ergoemacs-status=.
 
 * Hacking status-bar
