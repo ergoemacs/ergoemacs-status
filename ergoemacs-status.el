@@ -1433,7 +1433,8 @@ When WHAT is nil, return the width of the window"
 	    (setq ergoemacs-status-turn-off-mode-icons nil)
 	  (setq ergoemacs-status-turn-off-mode-icons t)
 	  (mode-icons-mode 1))
-	(ergoemacs-status-format))
+	(ergoemacs-status-format)
+	(powerline-reset))
     (when ergoemacs-status-turn-off-mode-icons
       (mode-icons-mode -1))
     (ergoemacs-status-format t)))
