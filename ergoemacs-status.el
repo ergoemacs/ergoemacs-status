@@ -417,6 +417,9 @@ When DONT-POPUP is non-nil, return the menu without actually popping up the menu
             (interactive "@e")
             nil))))
 
+(defvar ergoemacs-status--transient-hidden-minor-modes '()
+  "List of temorarily hidden modes that are not saved between sessions.")
+
 (defvar ergoemacs-status--hidden-minor-modes '()
   "List of tempoarily hidden modes.")
 
@@ -472,23 +475,37 @@ When DONT-POPUP is non-nil, return the menu without actually popping up the menu
 	  (insert "(add-hook 'emacs-startup-hook #'ergoemacs-status-elements-popup-restore)\n(add-hook 'emacs-startup-hook #'ergoemacs-status-current-update)\n;;; end of file\n"))
       (and (not modified)
 	   (buffer-modified-p)
-	   (set-buffer-modified-p nil))))
-  )
+	   (set-buffer-modified-p nil)))))
 
-(defun ergoemacs-minor-mode-hide (minor-mode &optional show)
+(defun ergoemacs-minor-mode-hide (minor-mode &optional show transient)
   "Hide a minor-mode based on mode indicator MINOR-MODE.
 
 When SHOW is non-nil, show instead of hide the MINOR-MODE.
 
+When TRANSIENT is non-nil, hide this minor mode
+tranisently (doesn't save between sessions).
+
 This function also saves your prefrences to
 `ergoemacs-status-file' by calling the function
 `ergoemacs-status-save-file'."
-  (if show
-      (setq ergoemacs-status--hidden-minor-modes (delq minor-mode ergoemacs-status--hidden-minor-modes))
-    (unless (memq minor-mode ergoemacs-status--hidden-minor-modes)
-      (push minor-mode ergoemacs-status--hidden-minor-modes)))
-  (ergoemacs-status-save-file)
-  (force-mode-line-update))
+  (let ((present-p (memq minor-mode (or (and transient ergoemacs-status--transient-hidden-minor-modes)
+					ergoemacs-status--hidden-minor-modes)))
+	(refresh-p t))
+    (cond
+     ((and show present-p transient)
+      (setq ergoemacs-status--transient-hidden-minor-modes (delq minor-mode ergoemacs-status--transient-hidden-minor-modes)))
+     ((and show present-p)
+      (setq ergoemacs-status--hidden-minor-modes (delq minor-mode ergoemacs-status--hidden-minor-modes)))
+     ((and transient (not present-p))
+      (push minor-mode ergoemacs-status--transient-hidden-minor-modes))
+     ((not present-p)
+      (push minor-mode ergoemacs-status--hidden-minor-modes))
+     (t
+      (setq refresh-p nil)))
+    (when refresh-p
+      (unless transient
+	(ergoemacs-status-save-file))
+      (force-mode-line-update))))
 
 (defun ergoemacs-minor-mode-hidden-menu (&optional _event)
   "Display a list of the hidden minor modes.
@@ -501,6 +518,7 @@ Currently this ignores the _EVENT data."
 	 `(,m menu-item ,(format "%s" m) ,(ergoemacs-minor-mode-menu-from-indicator m t)))
        (let (ret)
 	 (dolist (elt (append ergoemacs-status--hidden-minor-modes
+			      ergoemacs-status--transient-hidden-minor-modes
 			      ergoemacs-status--automatic-hidden-minor-modes))
 	   (when (and (boundp elt) (symbol-value elt))
 	     (push elt ret)))
@@ -511,7 +529,9 @@ Currently this ignores the _EVENT data."
   "Get a list of the minor-modes"
   (let (ret)
     (dolist (a (reverse minor-mode-alist))
-      (unless (memq (car a) (append ergoemacs-status--hidden-minor-modes ergoemacs-status--suppressed-minor-modes))
+      (unless (memq (car a) (append ergoemacs-status--hidden-minor-modes
+				    ergoemacs-status--transient-hidden-minor-modes
+				    ergoemacs-status--suppressed-minor-modes))
 	(push a ret)))
     ret))
 
@@ -687,6 +707,7 @@ Currently this ignores the _EVENT data."
 				       (mouse-3 . flycheck-prev-error))))
 	      ret))
       (when ret
+	;; (push 'flycheck-mode ergoemacs-status--automatic-hidden-minor-modes)
 	(setq ret (mapconcat (lambda(x) x) (reverse ret) " ")))
       ret)))
 
@@ -866,6 +887,9 @@ When DONT-POPUP is non-nil, just return the menu"
 
 (defun ergoemacs-status-current-update (&optional theme-list direction)
   "Update mode-line processing based on `ergoemacs-status-current'."
+  (if (memq :flycheck ergoemacs-status--suppressed-elements)
+      (ergoemacs-minor-mode-hide 'flycheck-mode nil t)
+    (ergoemacs-minor-mode-hide 'flycheck-mode t t))
   (if (not direction)
       (setq ergoemacs-status--lhs (ergoemacs-status-current-update (plist-get ergoemacs-status-current :left) :left)
 	    ergoemacs-status--center (ergoemacs-status-current-update (plist-get ergoemacs-status-current :center) :center) 
