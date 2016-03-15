@@ -618,6 +618,43 @@ Currently this ignores the _EVENT data."
     (propertize (mode-icons--modified-status)
 		'face 'mode-line-buffer-id)))
 
+(defun ergoemacs-status--flycheck ()
+  "Element for flycheck."
+  (when (and (boundp 'flycheck-mode) flycheck-mode)
+    (let ((info (flycheck-count-errors flycheck-current-errors))
+	  tmp
+	  ret)
+      (when (setq tmp (assoc 'error info))
+	(push (propertize
+	       (format "+%s"(cdr tmp))
+	       'face 'error
+	       'local-map '(keymap
+			    (mode-line keymap
+				       (mouse-1 . flycheck-next-error)
+				       (mouse-3 . flycheck-prev-error))))
+	      ret))
+      (when (setq tmp (assoc 'warning info))
+	(push (propertize
+	       (format "+%s" (cdr tmp))
+	       'face 'warning
+	       'local-map '(keymap
+			    (mode-line keymap
+				       (mouse-1 . flycheck-next-error)
+				       (mouse-3 . flycheck-prev-error))))
+	      ret))
+      (when (setq tmp (assoc 'info info))
+	(push (propertize
+	       (format "+%s" (cdr tmp))
+	       'face 'font-lock-doc-face
+	       'local-map '(keymap
+			    (mode-line keymap
+				       (mouse-1 . flycheck-next-error)
+				       (mouse-3 . flycheck-prev-error))))
+	      ret))
+      (when ret
+	(setq ret (mapconcat (lambda(x) x) (reverse ret) " ")))
+      ret)))
+
 (defun ergoemacs-status--nyan ()
   "Nyan element for ergoemacs-status"
   (when (and (boundp 'nyan-mode) nyan-mode)
@@ -629,6 +666,7 @@ Currently this ignores the _EVENT data."
     (:modified (ergoemacs-status--modified) nil "Modified Indicator")
     (:size (ergoemacs-status-size-indication-mode) 2 (("Buffer Size" size-indication-mode)))
     (:nyan (ergoemacs-status--nyan) 1 (("Nyan mode" nyan-mode)))
+    (:flycheck (ergoemacs-status--flycheck) 1 "Flycheck Errors")
     (:position (ergoemacs-status-position) 2 ( ("Line" line-number-mode)
 						  ("Column" column-number-mode)))
     (:vc (ergoemacs-status-use-vc powerline-vc) 1 "Version Control")
@@ -851,7 +889,7 @@ When DONT-POPUP is non-nil, just return the menu"
 (defun ergoemacs-status--center ()
   "Center theme."
   (setq ergoemacs-status-current
-	'(:left (:major :which :vc :size :nyan :position)
+	'(:left (:major :which :vc :size :nyan :position :flycheck)
 		 :center ((:read-only :buffer-id :modified))
 		 :right (:global :process :coding :eol (:minor :narrow))))
   (ergoemacs-status-current-update)
