@@ -43,13 +43,18 @@
 (declare-function mode-icons-get-mode-icon "mode-icons")
 (declare-function mode-icons-mode "mode-icons")
 (declare-function mode-icons-propertize-mode "mode-icons")
+(declare-function mode-icons--read-only-status "mode-icons")
+(declare-function mode-icons--modified-status "mode-icons")
+
+(declare-function flycheck-count-errors "flycheck")
+
 
 (declare-function powerline-current-separator "powerline")
 (declare-function powerline-selected-window-active "powerline")
 
 (defmacro ergoemacs-status-save-buffer-state (&rest body)
-  "Eval BODY,
-then restore the buffer state under the assumption that no significant
+  "Eval BODY without modifiying the buffer state.
+This then restore the buffer state under the assumption that no significant
 modification has been made in BODY.  A change is considered
 significant if it affects the buffer text in any way that isn't
 completely restored again.  Changes in text properties like `face' or
@@ -67,7 +72,7 @@ deleting it again\), so that the user never sees them on his
 `buffer-undo-list'.  
 
 However, any user-visible changes to the buffer \(like auto-newlines\)
-must not be within a `ergoemacs-save-buffer-state', since the user then
+must not be within a `ergoemacs-status-save-buffer-state', since the user then
 wouldn't be able to undo them.
 
 The return value is the value of the last form in BODY.
@@ -253,9 +258,10 @@ buffer is selected with mode-line click."
 
 (defun ergoemacs-status--ensure-list (item)
   "Ensure that ITEM is a list."
-  (or (and (listp item) eitem) (list item)))
+  (or (and (listp item) item) (list item)))
 
 (defun ergoemacs-status--add-text-property (str prop val)
+  "For STR add PROP property set to VAL value."
   ;; Taken from powerline by Donald Ephraim Curtis, Jason Milkins and
   ;; Nicolas Rougier
   ;; Changed so that prop is not just 'face
@@ -270,6 +276,11 @@ buffer is selected with mode-line click."
    ""))
 
 (defun ergoemacs-status--if--1 (lst-or-string)
+  "Render LST-OR-STRING conditionally.
+
+If this list contains functions, and they return nil, don't
+render anything.  The last element should be a string, list or
+symbol to render in the mode-line."
   (cond
    ((consp lst-or-string)
     (catch 'found-it
@@ -576,10 +587,10 @@ Currently this ignores the _EVENT data."
   "Determine if `ergoemacs-status--minor-modes' generates space.")
 
 (defvar ergoemacs-status--minor-modes-available nil)
-(defun ergoemacs-status--minor-modes-available (mode-line face1 face2 &optional reduce)
+(defun ergoemacs-status--minor-modes-available (mode-line face1 &optional reduce)
   "Calculate the space available for minor-modes.
 
-MODE-LINE is the mode-line face.  FACE1 and FACE2 are faces
+MODE-LINE is the mode-line face.  FACE1 is the alternative face.
 passed to `ergoemacs-status--eval-lhs',
 `ergoemacs-status--eval-rhs' and
 `ergoemacs-status--eval-center'.
@@ -588,9 +599,9 @@ REDUCE is the current reduction level being calculated."
   (let (lhs rhs center)
     (setq ergoemacs-status--minor-modes-p nil)
     (unwind-protect
-	(setq lhs (ergoemacs-status--eval-lhs mode-line face1 face2 reduce)
-	      rhs (ergoemacs-status--eval-rhs mode-line face1 face2 reduce)
-	      center (ergoemacs-status--eval-center mode-line face1 face2))
+	(setq lhs (ergoemacs-status--eval-lhs mode-line face1 reduce)
+	      rhs (ergoemacs-status--eval-rhs mode-line face1 reduce)
+	      center (ergoemacs-status--eval-center mode-line face1 reduce))
       (setq ergoemacs-status--minor-modes-p t
 	    ergoemacs-status--minor-modes-available (- (ergoemacs-status--eval-width)
 						     (+ (ergoemacs-status--eval-width lhs)
@@ -1027,7 +1038,7 @@ through a recursive call of `ergoemacs-status-current-update'."
   (force-mode-line-update))
 
 (defun ergoemacs-status--xah ()
-  "Xah theme"
+  "Xah status theme."
   (setq ergoemacs-status-current
 	'(:left ((:read-only :buffer-id :modified) :size :nyan :position :major :global)))
   (ergoemacs-status-current-update)
@@ -1043,14 +1054,26 @@ through a recursive call of `ergoemacs-status-current-update'."
 
 (ergoemacs-status--center)
 
-(defun ergoemacs-status--eval-center (mode-line face1 _face2 &optional reduce)
+(defun ergoemacs-status--eval-center (mode-line face1 &optional reduce)
+  "Evalate the center of the mode-line.
+MODE-LINE is mode-line face
+FACE1 is the alternative face.
+REDUCE is the reduction level."
   (or (and ergoemacs-status--center (ergoemacs-status--stack ergoemacs-status--center mode-line face1 'center reduce))
       ""))
 
-(defun ergoemacs-status--eval-lhs (mode-line face1 _face2 &optional reduce)
+(defun ergoemacs-status--eval-lhs (mode-line face1 &optional reduce)
+  "Evalate the left hand side of the mode-line.
+MODE-LINE is mode-line face
+FACE1 is the alternative face.
+REDUCE is the reduction level."
   (ergoemacs-status--stack ergoemacs-status--lhs mode-line face1 'left reduce))
 
-(defun ergoemacs-status--eval-rhs (mode-line face1 _face2 &optional reduce)
+(defun ergoemacs-status--eval-rhs (mode-line face1 &optional reduce)
+  "Evalate the right hand side of the mode-line.
+MODE-LINE is mode-line face
+FACE1 is the alternative face.
+REDUCE is the reduction level."
   (or (and ergoemacs-status--rhs (ergoemacs-status--stack ergoemacs-status--rhs mode-line face1 'right reduce)) ""))
 
 
@@ -1079,8 +1102,9 @@ Swaps ELT based on HOVER element and `ergoemacs-status-down-element'"
    (t elt)))
 
 (defun ergoemacs-status-swap-hover (hover)
-  "Change `ergoemacs-status-current' baesd on swapping HOVER
-element with `ergoemacs-status-down-element' element."
+  "Change `ergoemacs-status-current' based on swapping elements.
+HOVER is the current element that is being overed over and will
+be swapped with the `ergoemacs-status-down-element' element."
   (when ergoemacs-status-down-element
     (let* ((left (plist-get ergoemacs-status-current :left))
 	   (center (plist-get ergoemacs-status-current :center))
@@ -1153,13 +1177,14 @@ element with `ergoemacs-status-down-element' element."
       (force-mode-line-update))))
 
 (defun ergoemacs-status-down (start-event)
-  "Handle down-mouse events on `mode-line'."
+  "Handle down-mouse events on `mode-line'.
+START-EVENT is where the mouse was clicked."
   (interactive "e")
   (let* ((start (event-start start-event))
 	 (window (posn-window start))
 	 (frame (window-frame window))
 	 (object (posn-object start))
-	 (minibuffer-window (minibuffer-window frame))
+	 ;; (minibuffer-window (minibuffer-window frame))
 	 (element (and (stringp (car object))
 		       (get-text-property (cdr object) :element (car object))))
 	 hover finished event position)
@@ -1203,8 +1228,8 @@ element with `ergoemacs-status-down-element' element."
     (force-mode-line-update)))
 
 (defun ergoemacs-status--modify-map (map)
-  "Modify MAP to include context menu. Also allows arrangment
-with C- M- or S- dragging of elements."
+  "Modify MAP to include context menu. 
+Also allows arrangment with C- M- or S- dragging of elements."
   (let ((map map) tmp)
     (if (not map)
 	(setq map (make-sparse-keymap))
@@ -1261,7 +1286,12 @@ to t. This removes the stickiness properties of the string."
 	   (set-buffer-modified-p nil)))))
 
 (defun ergoemacs-status--stack (mode-line-list face1 face2 dir &optional reduction-level)
-  "Stacks mode-line elements."
+  "Stacks mode-line elements.
+MODE-LINE-LIST is the list of elements to stack.
+FACE1 is the first face to alternate between
+FACE2 is the second face to alternate between
+DIR is the direction 'left 'right or 'center
+REDUCTION-LEVEL is the level the current element is being reduced to."
   (let* (ret
 	 (face-list (list face1 face2))
 	 (len (length face-list))
@@ -1271,7 +1301,7 @@ to t. This removes the stickiness properties of the string."
 		  mode-line-list
 		(reverse mode-line-list)))
 	 (cur-dir dir)
-	 last-face cur-face swap-dir tmp)
+	 last-face cur-face tmp)
     (dolist (elt lst)
       (setq ifs (car elt)
 	    plist (cdr elt)
@@ -1356,26 +1386,32 @@ to t. This removes the stickiness properties of the string."
   :group 'ergoemacs-status)
 
 (defvar ergoemacs-status--pixel-width-p nil
-  "Determines if the mode line tries to calculate width")
+  "Determines if the mode line tries to calculate width in pixels.")
 
 (defun ergoemacs-status--eval-width (&optional what)
+  "Evaluate the width of an element or window.
+If WHAT is nil, this returns the width of a window.
+If WHAT is an element, returns the width of that element."
   (if ergoemacs-status--pixel-width-p
       (ergoemacs-status--eval-width-pixels what)
     (ergoemacs-status--eval-width-col what)))
 
 (defun ergoemacs-status--eval-string-width-pixels (str)
-  "Get string width in pixels."
+  "Get string STR width in pixels."
   (with-current-buffer (get-buffer-create " *ergoemacs-eval-width*")
 	(delete-region (point-min) (point-max))
 	(insert str)
 	(car (window-text-pixel-size nil (point-min) (point-max)))))
 
 (defun ergoemacs-status--eval-width-pixels (&optional what)
-  "Get the width of the display in pixels."
+  "Get the width of the display in pixels.
+If WHAT is nil, return the width of the display.
+If WHAT is an element, return the width of the element."
   (ergoemacs-status--eval-width-col what t))
 
 (defun ergoemacs-status--eval-width-col-string (str &optional pixels-p)
-  "Figure out the column width of STR."
+  "Figure out the column width of STR.
+When PIXELS-P is non-nil, use pixels instead of column width."
   (apply
    '+
    (mapcar (lambda(x)
@@ -1392,7 +1428,8 @@ to t. This removes the stickiness properties of the string."
 
 (defun ergoemacs-status--eval-width-col (&optional what pixels-p)
   "Eval width of WHAT, which is formated with `format-mode-line'.
-When WHAT is nil, return the width of the window"
+When WHAT is nil, return the width of the window.
+When PIXELS-P is non-nil, return the width in pixels instead of column width."
   (or (and what (ergoemacs-status--eval-width-col-string (format-mode-line what pixels-p)))
       (if pixels-p
 	  (let ((width (ergoemacs-status--eval-width-col))
@@ -1427,13 +1464,15 @@ When WHAT is nil, return the width of the window"
   "Keymap for the filling spaces.")
 
 (defun ergoemacs-status--eval ()
+  "Mode-line element for `ergoemacs-status' mode-line."
   (if ergoemacs-stats--ignore-eval-p ""
     ;; This will dynamically grow/fill areas
     (setq mode-icons-read-only-space nil
 	  mode-icons-show-mode-name t
 	  mode-icons-eol-text t
 	  mode-name (or (and (fboundp #'mode-icons-get-mode-icon)
-			     (mode-icons-get-mode-icon (or mode-icons-cached-mode-name mode-name)))
+			     (ergoemacs-status-save-buffer-state
+			      (mode-icons-get-mode-icon (or mode-icons-cached-mode-name mode-name))))
 			mode-name))
     (let* ((active (or (and (fboundp #'powerline-selected-window-active) (powerline-selected-window-active)) t))
 	   (mode-line (if active 'mode-line 'mode-line-inactive))
@@ -1470,10 +1509,10 @@ When WHAT is nil, return the width of the window"
 	  (setq mode-icons-read-only-space nil
 		mode-icons-show-mode-name nil
 		mode-icons-eol-text nil
-		lhs (ergoemacs-status--minor-modes-available mode-line face1 face2)
-		lhs (ergoemacs-status--eval-lhs mode-line face1 face2 reduce-level)
-		rhs (ergoemacs-status--eval-rhs mode-line face1 face2 reduce-level)
-		center (ergoemacs-status--eval-center mode-line face1 face2 reduce-level)
+		lhs (ergoemacs-status--minor-modes-available mode-line face1)
+		lhs (ergoemacs-status--eval-lhs mode-line face1 reduce-level)
+		rhs (ergoemacs-status--eval-rhs mode-line face1 reduce-level)
+		center (ergoemacs-status--eval-center mode-line face1 reduce-level)
 		wlhs (ergoemacs-status--eval-width lhs)
 		wrhs (ergoemacs-status--eval-width rhs)
 		wcenter (ergoemacs-status--eval-width center)
@@ -1502,6 +1541,8 @@ When WHAT is nil, return the width of the window"
 	       (ergoemacs-status--property-substrings (format-mode-line ergoemacs-status--eval) :element)))))))
 
 (defun ergoemacs-status--variable-pitch (&optional frame)
+  "Change the mode-line faces to have variable picth fonts.
+FRAME is the frame that is modified."
   (dolist (face '(mode-line mode-line-inactive
 			    powerline-active1
 			    powerline-inactive1
@@ -1548,10 +1589,11 @@ When WHAT is nil, return the width of the window"
   "Old `mode-line-end-spaces'.")
 
 (defvar ergoemacs-status-save-mouse-3 nil
-  "Old mouse-3")
+  "Old right click button.")
 
 (defun ergoemacs-status-format (&optional restore)
-  "Setup `ergoemacs-status' `mode-line-format'."
+  "Setup `ergoemacs-status' `mode-line-format'.
+When RESTORE is non-nil, restore the `mode-line-format'.r"
   (if restore
       (progn
 	(set-default 'mode-line-format
