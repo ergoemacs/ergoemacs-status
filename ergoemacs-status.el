@@ -334,7 +334,9 @@ EVENT tells what window to set the codings system."
 (defvar ergoemacs-status-sep-swap
   '(alternate arrow arrow-fade bar box brace butt chamfer contour curve rounded roundstub wave zigzag)
   "List of separators to swap.")
+
 (defvar powerline-default-separator)
+
 (defun ergoemacs-status-sep-swap ()
   "Swap separators used in powerline."
   (interactive)
@@ -354,27 +356,39 @@ EVENT tells what window to set the codings system."
   "Keymap for separators.")
 
 (defvar powerline-default-separator-dir)
-(defun ergoemacs-status--sep (dir &rest args)
-  "Separator with DIR.
+(defvar ergoemacs-status--sep 'left
+  "Direction if current separator. 
+
+Used with `ergoemacs-status--sep'.")
+
+(defvar ergoemacs-status--swap '(alternate bar box chamfer contour rounded wave zigzag)
+  "Separators that swap directions with every separator used.")
+
+(defun ergoemacs-status--sep (&rest args)
+  "Separator between elements.
 The additional ARGS are the fonts applied.  This uses `powerline' functions."
-  (let ((separator (and (fboundp #'powerline-current-separator)
-			(intern (format "powerline-%s-%s"
-					(powerline-current-separator)
-					(or (and (eq dir 'left)
-						 (car powerline-default-separator-dir))
-					    (cdr powerline-default-separator-dir))))))
-	(args (mapcar
-	       (lambda(face)
-		 (let* ((f (or (and (symbolp face) face)
-			       (and (consp face) (symbolp (car face)) (car face))))
-			(fa (assoc f face-remapping-alist)))
-		   (if fa
-		       (car (cdr fa))
-		     f)))
-	       args)))
+  (let* ((dir ergoemacs-status--sep)
+	 (cs (powerline-current-separator))
+	 (separator (and (fboundp #'powerline-current-separator)
+			 (intern (format "powerline-%s-%s" cs
+					 (or (and (eq dir 'left)
+						  (car powerline-default-separator-dir))
+					     (cdr powerline-default-separator-dir))))))
+	 (args (mapcar
+		(lambda(face)
+		  (let* ((f (or (and (symbolp face) face)
+				(and (consp face) (symbolp (car face)) (car face))))
+			 (fa (assoc f face-remapping-alist)))
+		    (if fa
+			(car (cdr fa))
+		      f)))
+		args)))
     (when (fboundp separator)
       (let ((img (apply separator args)))
 	(when (and (listp img) (eq 'image (car img)))
+	  (when (memq cs ergoemacs-status--swap)
+	    (setq ergoemacs-status--sep
+		  (or (and (eq 'left ergoemacs-status--sep) 'right) 'left)))
 	  (propertize " " 'display img
 		      'face (plist-get (cdr img) :face)
 		      'mouse-face 'mode-line-highlight
@@ -512,7 +526,8 @@ When DONT-POPUP is non-nil, return the menu without actually popping up the menu
     ergoemacs-status-current
     ergoemacs-status--suppressed-elements
     ergoemacs-status-elements-popup-save
-    powerline-default-separator)
+    powerline-default-separator
+    ergoemacs-status--minor-modes-separator)
   "List of symbols to save in `ergoemacs-status-file'.")
 
 (defun ergoemacs-status-save-file ()
@@ -607,6 +622,10 @@ REDUCE is the current reduction level being calculated."
 						     (+ (ergoemacs-status--eval-width lhs)
 							(ergoemacs-status--eval-width rhs)
 							(ergoemacs-status--eval-width center)))))))
+
+(defvar ergoemacs-status--minor-modes-separator " "
+  "Separator for minor modes.")
+
 (defun ergoemacs-status--minor-modes ()
   "Get minor modes."
   (let* ((width 0)
@@ -620,41 +639,40 @@ REDUCE is the current reduction level being calculated."
       (setq ergoemacs-status--automatic-hidden-minor-modes nil
 	    ret (replace-regexp-in-string
 		 " +$" ""
-		 (concat
-		  (mapconcat (lambda (mm)
-			       (if (or (not (numberp ergoemacs-status--minor-modes-available))
-				       (< width ergoemacs-status--minor-modes-available))
-				   (let ((cur (propertize mm
-							  'mouse-face 'mode-line-highlight
-							  'help-echo "Minor mode\n mouse-1: Display minor mode menu\n mouse-2: Show help for minor mode\n mouse-3: Toggle minor modes"
-							  'local-map (let ((map (make-sparse-keymap)))
-								       (define-key map
-									 [mode-line down-mouse-1]
-									 (ergoemacs-status--minor-mode-mouse 'minor 'menu mm))
-								       (define-key map
-									 [mode-line mouse-2]
-									 (ergoemacs-status--minor-mode-mouse 'minor 'help mm))
-								       (define-key map
-									 [mode-line down-mouse-3]
-									 (ergoemacs-status--minor-mode-mouse 'minor 'menu mm))
-								       (define-key map
-									 [header-line down-mouse-3]
-									 (ergoemacs-status--minor-mode-mouse 'minor 'menu mm))
-								       map))))
-				     ;; (message "`%s';%s" cur (string-match-p ergoemacs-status--regexp-hidden cur))
-				     (if (string-match-p ergoemacs-status--regexp-hidden cur)
-					 (progn
-					   (push (lookup-minor-mode-from-indicator mm) ergoemacs-status--automatic-hidden-minor-modes)
-					   "")
-				       (if (or (not (numberp ergoemacs-status--minor-modes-available))
-					       (< width ergoemacs-status--minor-modes-available))
-					   cur
-					 (push (lookup-minor-mode-from-indicator mm) ergoemacs-status--automatic-hidden-minor-modes)
-					 "")))
-				 (push (lookup-minor-mode-from-indicator mm) ergoemacs-status--automatic-hidden-minor-modes)
-				 ""))
-			     (split-string (format-mode-line (ergoemacs-minor-mode-alist)))
-			     " ")))))
+		 (mapconcat (lambda (mm)
+			      (if (or (not (numberp ergoemacs-status--minor-modes-available))
+				      (< width ergoemacs-status--minor-modes-available))
+				  (let ((cur (propertize mm
+							 'mouse-face 'mode-line-highlight
+							 'help-echo "Minor mode\n mouse-1: Display minor mode menu\n mouse-2: Show help for minor mode\n mouse-3: Toggle minor modes"
+							 'local-map (let ((map (make-sparse-keymap)))
+								      (define-key map
+									[mode-line down-mouse-1]
+									(ergoemacs-status--minor-mode-mouse 'minor 'menu mm))
+								      (define-key map
+									[mode-line mouse-2]
+									(ergoemacs-status--minor-mode-mouse 'minor 'help mm))
+								      (define-key map
+									[mode-line down-mouse-3]
+									(ergoemacs-status--minor-mode-mouse 'minor 'menu mm))
+								      (define-key map
+									[header-line down-mouse-3]
+									(ergoemacs-status--minor-mode-mouse 'minor 'menu mm))
+								      map))))
+				    ;; (message "`%s';%s" cur (string-match-p ergoemacs-status--regexp-hidden cur))
+				    (if (string-match-p ergoemacs-status--regexp-hidden cur)
+					(progn
+					  (push (lookup-minor-mode-from-indicator mm) ergoemacs-status--automatic-hidden-minor-modes)
+					  "")
+				      (if (or (not (numberp ergoemacs-status--minor-modes-available))
+					      (< width ergoemacs-status--minor-modes-available))
+					  cur
+					(push (lookup-minor-mode-from-indicator mm) ergoemacs-status--automatic-hidden-minor-modes)
+					"")))
+				(push (lookup-minor-mode-from-indicator mm) ergoemacs-status--automatic-hidden-minor-modes)
+				""))
+			    (split-string (format-mode-line (ergoemacs-minor-mode-alist)))
+			    ergoemacs-status--minor-modes-separator))))
     (when (or (not ergoemacs-status--minor-modes-p)
 	      ergoemacs-status--automatic-hidden-minor-modes
 	      (catch 'found
@@ -662,7 +680,7 @@ REDUCE is the current reduction level being calculated."
 		  (when (and (boundp elt) (symbol-value elt))
 		    (throw 'found t)))
 		nil))
-      (setq ret (concat ret " "
+      (setq ret (concat ret ergoemacs-status--minor-modes-separator
 			(propertize (if (and (fboundp #'mode-icons-propertize-mode))
 					(mode-icons-propertize-mode "+" (list "+" #xf151 'FontAwesome))
 				      "+")
@@ -671,7 +689,11 @@ REDUCE is the current reduction level being calculated."
 				    'local-map (let ((map (make-sparse-keymap)))
 						 (define-key map [mode-line down-mouse-1] 'ergoemacs-minor-mode-hidden-menu)
 						 (define-key map [mode-line down-mouse-3] 'ergoemacs-minor-mode-hidden-menu)
-						 map)))))
+						 map)))
+	    ret (replace-regexp-in-string (format "%s%s+"
+						  (regexp-quote ergoemacs-status--minor-modes-separator)
+						  (regexp-quote ergoemacs-status--minor-modes-separator))
+					  ergoemacs-status--minor-modes-separator ret)))
     ret))
 
 (defvar ergoemacs-status-position-map
@@ -779,8 +801,47 @@ EVENT is the mouse-click event to determine the window where
     (ergoemacs-status-save-buffer-state
      (format-mode-line '(:eval (list (nyan-create)))))))
 
+(defun ergoemacs-status--anzu ()
+  "Anzu element for `ergoemacs-status-mode'."
+  (when (bound-and-true-p anzu--state)
+    (anzu--update-mode-line)))
+
+(defvar evil-state)
+(defvar evil-visual-selection)
+
+;; Adapted from spaceline.
+(defun ergoemacs-status--column-number-at-pos (pos)
+  "Column number at POS.  Analog to `line-number-at-pos'."
+  (save-excursion (goto-char pos) (current-column)))
+
+(defun ergoemacs-status--selection-info ()
+  "Information about the size of the current selection, when applicable.
+Supports both Emacs and Evil cursor conventions."
+  (when (or mark-active
+            (and (bound-and-true-p evil-local-mode)
+                 (eq 'visual evil-state)))
+    (let* ((lines (count-lines (region-beginning) (min (1+ (region-end)) (point-max))))
+	   (chars (- (1+ (region-end)) (region-beginning)))
+	   (cols (1+ (abs (- (ergoemacs-status--column-number-at-pos (region-end))
+			     (ergoemacs-status--column-number-at-pos (region-beginning))))))
+	   (evil (and (bound-and-true-p evil-state) (eq 'visual evil-state)))
+	   (rect (or (bound-and-true-p rectangle-mark-mode)
+		     (and evil (eq 'block evil-visual-selection))))
+	   (multi-line (or (> lines 1) (and evil (eq 'line evil-visual-selection)))))
+      (cond
+       (rect (format "%d×%d block" lines (if evil cols (1- cols))))
+       (multi-line (format "%d lines" lines))
+       (t (format "%d chars" (if evil chars (1- chars))))))))
+
+(defun ergoemacs-status--hud ()
+  "HUD for ergoemacs-status."
+  "Heads up display"
+  (powerline-hud 'mode-line 'powerline-active1))
+
 (defcustom ergoemacs-status-elements
-  '((:read-only (ergoemacs-status--read-only) 3 "Read Only Indicator")
+  '((:anzu (ergoemacs-status--anzu) 4 "Anzu")
+    (:selection-info (ergoemacs-status--selection-info) 1 "Selection Information")
+    (:read-only (ergoemacs-status--read-only) 3 "Read Only Indicator")
     (:buffer-id (ergoemacs-status-buffer-id) nil "Buffer Name")
     (:modified (ergoemacs-status--modified) nil "Modified Indicator")
     (:size (ergoemacs-status-size-indication-mode) 2 (("Buffer Size" size-indication-mode)))
@@ -798,7 +859,8 @@ EVENT is the mouse-click event to determine the window where
     (:eol ((lambda() (not (string= ":" (mode-line-eol-desc)))) mode-icons--mode-line-eol-desc mode-line-eol-desc) 2 "End Of Line Convention")
     (:major (ergoemacs-status-major-mode-item) nil nil "Language/Major mode")
     (:which-func (ergoemacs-status-which-function-mode) nil nil "Which function")
-    (:process (mode-line-process) 1 nil "Process"))
+    (:process (mode-line-process) 1 nil "Process")
+    (:hud (ergoemacs-status--hud) 1 nil "Heads Up Display"))
   "Elements of mode-line recognized by `ergoemacs-status-mode'.
 
 This is a list of element recognized by `ergoemacs-status-mode'."
@@ -966,15 +1028,12 @@ through a recursive call of `ergoemacs-status-current-update'."
 	  ifc
 	  lst
 	  first-p
-	  last-p
-	  swap-p)
+	  last-p)
       (dolist (elt (reverse theme-list))
 	(setq first-p t)
 	(if (consp elt)
 	    (dolist (combine-elt (reverse elt))
 	      (cond
-	       ((eq combine-elt :swap-dir)
-		(setq swap-p t))
 	       ((and (setq stat-elt (and (not (memq combine-elt ergoemacs-status--suppressed-elements))
 					 (assoc combine-elt ergoemacs-status-elements))))
 		(setq ifc (nth 1 stat-elt)
@@ -990,17 +1049,11 @@ through a recursive call of `ergoemacs-status-current-update'."
 			    (and first-p (eq direction :right)))
 		  (push t lst)
 		  (push :last-p lst))
-		(when swap-p
-		  (push t lst)
-		  (push :swap-dir lst))
-		(setq swap-p nil)
 		(push ifc lst)
 		(push lst ret)
 		(setq first-p nil))))
 	  
 	  (cond
-	   ((eq elt :swap-dir)
-	    (setq swap-p t))
 	   ((setq stat-elt (and (not (memq elt ergoemacs-status--suppressed-elements))
 				(assoc elt ergoemacs-status-elements)))
 	    (setq ifc (nth 1 stat-elt)
@@ -1011,10 +1064,6 @@ through a recursive call of `ergoemacs-status-current-update'."
 	      (push :reduce lst))
 	    (push elt lst)
 	    (push :element lst)
-	    (when swap-p
-	      (push t lst)
-	      (push :swap-dir lst))
-	    (setq swap-p nil)
 	    (push ifc lst)
 	    (push lst ret)))))
       ret)))
@@ -1047,18 +1096,26 @@ through a recursive call of `ergoemacs-status-current-update'."
 (defun ergoemacs-status--space ()
   "Spacemacs like theme."
   (setq ergoemacs-status-current
-	'(:left ((:read-only :size :buffer-id :modified) :major :swap-dir :minor :vc)
-		:right (:position)))
+	'(:left ((:persp-name :workspace-number :window-number)
+		 ;; :anzu
+		 :auto-compile
+		 (:read-only :size :buffer-id :modified :remote) :major :flycheck :minor :process :erc :vc
+		 :org-pomodoro :org-clock :nyan-cat)
+		:right (:battery :selection-info :coding :eol :position :hud))
+	powerline-default-separator 'wave 
+	ergoemacs-status--minor-modes-separator "|")
   (ergoemacs-status-current-update)
   (force-mode-line-update))
 
-(ergoemacs-status--center)
+(ergoemacs-status--space)
 
 (defun ergoemacs-status--eval-center (mode-line face1 &optional reduce)
   "Evalate the center of the mode-line.
 MODE-LINE is mode-line face
 FACE1 is the alternative face.
 REDUCE is the reduction level."
+  (unless (memq ergoemacs-status--sep ergoemacs-status--swap)
+    (setq ergoemacs-status--sep 'left))
   (or (and ergoemacs-status--center (ergoemacs-status--stack ergoemacs-status--center mode-line face1 'center reduce))
       ""))
 
@@ -1067,6 +1124,7 @@ REDUCE is the reduction level."
 MODE-LINE is mode-line face
 FACE1 is the alternative face.
 REDUCE is the reduction level."
+  (setq ergoemacs-status--sep 'left)
   (ergoemacs-status--stack ergoemacs-status--lhs mode-line face1 'left reduce))
 
 (defun ergoemacs-status--eval-rhs (mode-line face1 &optional reduce)
@@ -1074,6 +1132,8 @@ REDUCE is the reduction level."
 MODE-LINE is mode-line face
 FACE1 is the alternative face.
 REDUCE is the reduction level."
+  (unless (memq ergoemacs-status--sep ergoemacs-status--swap)
+    (setq ergoemacs-status--sep 'right))
   (or (and ergoemacs-status--rhs (ergoemacs-status--stack ergoemacs-status--rhs mode-line face1 'right reduce)) ""))
 
 
@@ -1117,10 +1177,6 @@ be swapped with the `ergoemacs-status-down-element' element."
 			  ((member hover left) 'left)
 			  ((member hover center) 'center)
 			  ((member hover right) 'right)))
-	   ;; (left-p (member  left))
-	   ;; (left (mapcar (lambda(elt) (ergoemacs-status-swap-hover-- elt hover)) (plist-get ergoemacs-status-current :left)))
-	   ;; (center (mapcar (lambda(elt) (ergoemacs-status-swap-hover-- elt hover)) (plist-get ergoemacs-status-current :center)))
-	   ;; (right (mapcar (lambda(elt) (ergoemacs-status-swap-hover-- elt hover)) (plist-get ergoemacs-status-current :right)))
 	   tmp)
       (cond
        ;; Same element.
@@ -1318,8 +1374,7 @@ REDUCTION-LEVEL is the level the current element is being reduced to."
 	  (unless (or (plist-get plist :last-p) (eq dir 'center))
 	    (setq i (1+ i)))
 	  (setq tmp (propertize (replace-regexp-in-string "\\( +$\\|^ +\\)" "" tmp)
-				:element (plist-get plist :element)
-				:swap-dir (plist-get plist :swap-dir)))
+				:element (plist-get plist :element)))
 	  (push tmp ret))))
     (when (eq (get-text-property 0 'face (format-mode-line (nth 0 ret)))
 		(nth 1 face-list))
@@ -1351,10 +1406,10 @@ REDUCTION-LEVEL is the level the current element is being reduced to."
 		      ((equal cur-face last-face)
 		       (ergoemacs-status--pad elt))
 		      ((eq dir 'left)
-		       (concat (ergoemacs-status--sep cur-dir last-face cur-face)
+		       (concat (ergoemacs-status--sep last-face cur-face)
 			       (ergoemacs-status--pad elt :both)))
 		      ((eq dir 'right)
-		       (concat (ergoemacs-status--pad elt :both) (ergoemacs-status--sep cur-dir cur-face last-face)))
+		       (concat (ergoemacs-status--pad elt :both) (ergoemacs-status--sep cur-face last-face)))
 		      ((eq dir 'center)
 		       (ergoemacs-status--pad elt :both)))
 		   (setq last-face cur-face)))
@@ -1362,15 +1417,18 @@ REDUCTION-LEVEL is the level the current element is being reduced to."
     (cond
      ((eq dir 'center)
       (setq tmp (ergoemacs-status--pad (pop ret) :left)
-	    ret (append (list (ergoemacs-status--sep 'left face2 face1))
+	    ret (append (list (ergoemacs-status--sep face2 face1))
 			(list tmp)
 			ret
-			(list (ergoemacs-status--sep 'right face1 face2)))))
+			(progn
+			  (unless (memq ergoemacs-status--sep ergoemacs-status--swap)
+			    (setq ergoemacs-status--sep 'right))
+			  (list (ergoemacs-status--sep face1 face2))))))
      ((eq last-face face2))
      ((eq dir 'left)
-      (setq ret (append ret (list (ergoemacs-status--sep dir last-face face2)))))
+      (setq ret (append ret (list (ergoemacs-status--sep last-face face2)))))
      ((eq dir 'right)
-      (setq ret (append ret (list (ergoemacs-status--sep dir face2 last-face))))))
+      (setq ret (append ret (list (ergoemacs-status--sep face2 last-face))))))
     (setq ret (if (eq dir 'right)
 		  (reverse ret)
 		ret))))
